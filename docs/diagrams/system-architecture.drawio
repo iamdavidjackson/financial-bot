@@ -1,0 +1,107 @@
+<mxfile host="app.diagrams.net">
+  <diagram id="Rls7jtiRkoz_Klh6B7nf" name="Page-1">
+    <mxGraphModel dx="941" dy="615" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1440" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=20;fontStyle=1;verticalAlign=middle;" value="Jackson Investments — System Architecture" vertex="1">
+          <mxGeometry height="40" width="1100" x="150" y="10" as="geometry" />
+        </mxCell>
+        <mxCell id="leftBox" parent="1" style="swimlane;html=1;fillColor=#EBF5FB;strokeColor=#2980B9;fontSize=13;fontStyle=1;startSize=40;arcSize=3;swimlaneLine=1;" value="Offline Training Pipeline" vertex="1">
+          <mxGeometry height="780" width="390" x="20" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="c1" parent="leftBox" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D6EAF8;strokeColor=#2980B9;fontSize=12;arcSize=10;" value="&lt;b&gt;1. Market Data&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Pull ticker data using yfinance&lt;/font&gt;" vertex="1">
+          <mxGeometry height="55" width="270" x="55" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="a12" edge="1" parent="leftBox" source="c1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;" target="c2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c2" parent="leftBox" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D6EAF8;strokeColor=#2980B9;fontSize=12;arcSize=10;" value="&lt;b&gt;2. Feature Engineering&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Add calculated metrics:&amp;nbsp;&lt;/font&gt;&lt;div&gt;&lt;font style=&quot;font-size:10px&quot;&gt;RSI, MACD, Bollinger Bands, ATR, OBV, HLC3&lt;/font&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="270" x="55" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="a23" edge="1" parent="leftBox" source="c2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;" target="c3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c3" parent="leftBox" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1B4F72;strokeColor=#1B4F72;fontColor=#FFFFFF;fontSize=12;arcSize=10;" value="&lt;b&gt;3. LSTM Model Training&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Keras / TensorFlow&lt;br&gt;Input: (30, 14) → up/down probability&lt;/font&gt;" vertex="1">
+          <mxGeometry height="78" width="270" x="55" y="290" as="geometry" />
+        </mxCell>
+        <mxCell id="a34" edge="1" parent="leftBox" source="c3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;" target="c4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c4" parent="leftBox" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1B4F72;strokeColor=#1B4F72;fontColor=#FFFFFF;fontSize=12;arcSize=10;" value="&lt;b&gt;4. RL Model Training&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;PPO / Stable-Baselines3&lt;br&gt;Portfolio reward signal&lt;/font&gt;" vertex="1">
+          <mxGeometry height="78" width="270" x="55" y="428" as="geometry" />
+        </mxCell>
+        <mxCell id="a45" edge="1" parent="leftBox" source="c4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;" target="c5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c5" parent="leftBox" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FDEBD0;strokeColor=#CA6F1E;fontSize=12;arcSize=10;" value="&lt;b&gt;5. Backtesting Module&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Test against 2023–2024 data&lt;/font&gt;" vertex="1">
+          <mxGeometry height="75" width="270" x="55" y="563" as="geometry" />
+        </mxCell>
+        <mxCell id="a56" edge="1" parent="leftBox" source="c5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;" target="c6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c6" parent="leftBox" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5F5E3;strokeColor=#1E8449;fontSize=12;arcSize=10;" value="&lt;b&gt;6. Saved Models&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;LSTM weights (.h5) · PPO policy (.zip)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="60" width="270" x="55" y="695" as="geometry" />
+        </mxCell>
+        <mxCell id="rightBox" parent="1" style="swimlane;html=1;fillColor=#EAFAF1;strokeColor=#1E8449;fontSize=13;fontStyle=1;startSize=40;arcSize=3;swimlaneLine=1;verticalAlign=top;" value="Online Advisor Application" vertex="1">
+          <mxGeometry height="780" width="650" x="460" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="cUser" parent="rightBox" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EAFAF1;strokeColor=#1E8449;arcSize=50;fontSize=12;" value="&lt;b&gt;User / Browser&lt;/b&gt;&lt;br/&gt;&lt;font style=&#39;font-size:10px&#39;&gt;Non-technical retail investor&lt;/font&gt;" vertex="1">
+          <mxGeometry height="50" width="200" x="225" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="aUser7" edge="1" parent="rightBox" source="cUser" style="edgeStyle=orthogonalEdgeStyle;fontSize=9;" target="c7" value="query">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c7" parent="rightBox" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5F5E3;strokeColor=#1E8449;fontSize=12;arcSize=10;" value="&lt;b&gt;7. Next.js Chat UI&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Chat interface, renders recommendation card,&lt;/font&gt;&lt;div&gt;&lt;font style=&quot;font-size:10px&quot;&gt;streams explanation text&lt;/font&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="65" width="250" x="200" y="158" as="geometry" />
+        </mxCell>
+        <mxCell id="a78" edge="1" parent="rightBox" source="c7" style="edgeStyle=orthogonalEdgeStyle;fontSize=9;" target="c8" value="HTTP POST /recommend">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c8" parent="rightBox" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5F5E3;strokeColor=#1E8449;fontSize=12;arcSize=10;" value="&lt;b&gt;8. FastAPI Backend&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Python, stateless, loads models at startup&lt;/font&gt;" vertex="1">
+          <mxGeometry height="65" width="250" x="200" y="283" as="geometry" />
+        </mxCell>
+        <mxCell id="a89" edge="1" parent="rightBox" source="c8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;" target="c9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="z0FkiI018IQkKbM_6xzA-2" edge="1" parent="rightBox" source="c9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="cOut">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c9" parent="rightBox" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF9E7;strokeColor=#D4AC0D;fontSize=12;arcSize=10;verticalAlign=top;" value="&lt;b&gt;9. LangChain ReAct Agent&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Ollama LLM, orchestrates tool calls, generates plain-language explanation&lt;/font&gt;" vertex="1">
+          <mxGeometry height="165" width="610" x="20" y="405" as="geometry" />
+        </mxCell>
+        <mxCell id="c10" parent="rightBox" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EDE7F6;strokeColor=#6A1B9A;fontSize=11;arcSize=10;" value="&lt;b&gt;10. fetch_stock_features&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;yfinance live data&lt;/font&gt;&lt;div&gt;&lt;font style=&quot;font-size:10px&quot;&gt;30-day OHLCV + indicators&lt;/font&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="65" width="185" x="39" y="482" as="geometry" />
+        </mxCell>
+        <mxCell id="c11" parent="rightBox" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EDE7F6;strokeColor=#6A1B9A;fontSize=11;arcSize=10;" value="&lt;b&gt;11. run_lstm_signal&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;LSTM inference → up/down probability&lt;/font&gt;" vertex="1">
+          <mxGeometry height="65" width="185" x="232" y="482" as="geometry" />
+        </mxCell>
+        <mxCell id="c12" parent="rightBox" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EDE7F6;strokeColor=#6A1B9A;fontSize=11;arcSize=10;" value="&lt;b&gt;12. run_rl_recommendation&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;PPO → BUY / SELL / HOLD + confidence&lt;/font&gt;" vertex="1">
+          <mxGeometry height="65" width="185" x="424" y="482" as="geometry" />
+        </mxCell>
+        <mxCell id="cOut" parent="rightBox" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5F5E3;strokeColor=#1E8449;fontSize=11;fontStyle=2;arcSize=10;" value="Recommendation + Plain-language Explanation&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;{ ticker, action, confidence, explanation, signals } — streamed via SSE back to 7.&lt;/font&gt;" vertex="1">
+          <mxGeometry height="65" width="340" x="165" y="674" as="geometry" />
+        </mxCell>
+        <mxCell id="aSSE" edge="1" parent="rightBox" source="cOut" style="edgeStyle=orthogonalEdgeStyle;rounded=0;dashed=1;dashPattern=6 4;strokeColor=#1E8449;fontColor=#1E8449;fontSize=9;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="c7" value="SSE stream">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="165" y="704" />
+              <mxPoint x="10" y="704" />
+              <mxPoint x="10" y="191" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="cross2" edge="1" parent="1" source="c6" style="edgeStyle=orthogonalEdgeStyle;dashed=1;dashPattern=6 4;strokeColor=#1B4F72;fontColor=#1B4F72;fontSize=9;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" target="c12" value="PPO policy (.zip)">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="560" y="785" />
+              <mxPoint x="560" y="680" />
+              <mxPoint x="986" y="680" />
+            </Array>
+            <mxPoint x="980" y="640" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -1,0 +1,102 @@
+<mxfile host="app.diagrams.net">
+  <diagram id="rl-ppo-portfolio-architecture" name="Page-1">
+    <mxGraphModel dx="1882" dy="1231" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1440" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=20;fontStyle=1;verticalAlign=middle;" value="RL Portfolio Agent - PPO Architecture" vertex="1">
+          <mxGeometry height="40" width="1100" x="170" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="lstm" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EAF2F8;strokeColor=#1B4F72;fontSize=12;arcSize=8;" value="&lt;b&gt;Stage 1: LSTM Signals&lt;/b&gt;&lt;br/&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Directional probability per stock&lt;br/&gt;0 = bearish, 1 = bullish&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="230" x="70" y="105" as="geometry" />
+        </mxCell>
+        <mxCell id="market" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EBF5FB;strokeColor=#2980B9;fontSize=12;arcSize=8;" value="&lt;b&gt;Market + Portfolio State&lt;/b&gt;&lt;br/&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Current prices, positions,&lt;br/&gt;cash, total portfolio value&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="230" x="70" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="obs_box" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;arcSize=8;fontColor=#333333;" value="&lt;b&gt;Observation Vector&lt;/b&gt;&lt;br/&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Size = 3N + 2&lt;br/&gt;For 5 stocks: 17 values&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="250" x="395" y="105" as="geometry" />
+        </mxCell>
+        <mxCell id="agent" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=13;arcSize=8;" value="&lt;b&gt;PPO Agent&lt;/b&gt;&lt;br/&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Stable-Baselines3&lt;br/&gt;Learns policy from environment rollouts&lt;/font&gt;" vertex="1">
+          <mxGeometry height="88" width="250" x="760" y="101" as="geometry" />
+        </mxCell>
+        <mxCell id="policy" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;arcSize=8;fontColor=#333333;" value="&lt;b&gt;Actor-Critic Policy Network&lt;/b&gt;&lt;br/&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Shared starting point:&lt;br/&gt;MLP 64 - ReLU - 64 - ReLU&lt;br/&gt;Actor chooses actions; critic estimates value&lt;/font&gt;" vertex="1">
+          <mxGeometry height="120" width="250" x="760" y="235" as="geometry" />
+        </mxCell>
+        <mxCell id="actions" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;arcSize=8;fontColor=#333333;" value="&lt;b&gt;Action Space&lt;/b&gt;&lt;br/&gt;&lt;font style=&quot;font-size:10px&quot;&gt;MultiDiscrete([3] * N)&lt;br/&gt;Per stock: 0 Hold, 1 Buy, 2 Sell&lt;br/&gt;For 5 stocks: 3^5 = 243 joint actions&lt;br/&gt;Scales exponentially with N&lt;/font&gt;" vertex="1">
+          <mxGeometry height="130" width="265" x="1095" y="225" as="geometry" />
+        </mxCell>
+        <mxCell id="env_lane" parent="1" style="swimlane;html=1;fillColor=#EAFAF1;strokeColor=#1E8449;fontSize=14;fontStyle=1;startSize=38;arcSize=3;swimlaneLine=1;" value="Custom OpenAI Gym Portfolio Environment" vertex="1">
+          <mxGeometry height="260" width="1280" x="80" y="430" as="geometry">
+            <mxRectangle height="38" width="310" x="80" y="430" as="alternateBounds" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="env_obs" parent="env_lane" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;arcSize=8;" value="&lt;b&gt;1. Provide Observation&lt;/b&gt;&lt;br/&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Daily timestep state:&lt;br/&gt;signals + positions + prices + cash + value&lt;/font&gt;" vertex="1">
+          <mxGeometry height="95" width="230" x="45" y="85" as="geometry" />
+        </mxCell>
+        <mxCell id="env_apply" parent="env_lane" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;arcSize=8;" value="&lt;b&gt;2. Apply Actions&lt;/b&gt;&lt;br/&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Buy, sell, or hold each stock&lt;br/&gt;Update shares and cash&lt;/font&gt;" vertex="1">
+          <mxGeometry height="95" width="230" x="365" y="85" as="geometry" />
+        </mxCell>
+        <mxCell id="env_cost" parent="env_lane" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;arcSize=8;" value="&lt;b&gt;3. Transaction Costs&lt;/b&gt;&lt;br/&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Deduct fixed cost:&lt;br/&gt;0.1% per trade&lt;/font&gt;" vertex="1">
+          <mxGeometry height="95" width="230" x="685" y="85" as="geometry" />
+        </mxCell>
+        <mxCell id="env_reward" parent="env_lane" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;arcSize=8;" value="&lt;b&gt;4. Return Reward&lt;/b&gt;&lt;br/&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Reward = change in total portfolio value&lt;br/&gt;after action and costs&lt;/font&gt;" vertex="1">
+          <mxGeometry height="95" width="230" x="1005" y="85" as="geometry" />
+        </mxCell>
+        <mxCell id="reward_note" parent="env_lane" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=11;fontStyle=2;fontColor=#1E8449;verticalAlign=middle;" value="Objective: incentivise wealth growth while accounting for trading friction." vertex="1">
+          <mxGeometry height="28" width="620" x="330" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="arr_env1" edge="1" parent="env_lane" source="env_obs" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1E8449;endArrow=block;endFill=1;" target="env_apply" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arr_env2" edge="1" parent="env_lane" source="env_apply" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1E8449;endArrow=block;endFill=1;" target="env_cost" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arr_env3" edge="1" parent="env_lane" source="env_cost" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1E8449;endArrow=block;endFill=1;" target="env_reward" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arr_lstm_obs" edge="1" parent="1" source="lstm" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1B4F72;fontColor=#1B4F72;fontSize=10;endArrow=block;endFill=1;" target="obs_box" value="signals">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arr_market_obs" edge="1" parent="1" source="market" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2980B9;fontColor=#2980B9;fontSize=10;endArrow=block;endFill=1;" value="state">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="480" y="190" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arr_obs_agent" edge="1" parent="1" source="obs_box" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#555555;fontColor=#555555;fontSize=10;endArrow=block;endFill=1;" target="agent" value="observation">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arr_agent_policy" edge="1" parent="1" source="agent" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#6A1B9A;endArrow=block;endFill=1;" target="policy" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arr_policy_actions" edge="1" parent="1" source="policy" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#666666;fontColor=#7D6608;fontSize=10;endArrow=block;endFill=1;fillColor=#f5f5f5;" target="actions" value="policy output">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arr_actions_env" edge="1" parent="1" source="actions" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#666666;fontColor=#7D6608;fontSize=10;endArrow=block;endFill=1;fillColor=#f5f5f5;" target="env_apply" value="action vector">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1228" y="395" />
+              <mxPoint x="560" y="395" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arr_env_obs_to_obs" edge="1" parent="1" source="env_obs" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1E8449;fontColor=#1E8449;fontSize=10;endArrow=block;endFill=1;" target="obs_box" value="next observation">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="195" y="395" />
+              <mxPoint x="520" y="395" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arr_reward_agent" edge="1" parent="1" source="env_reward" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1E8449;fontColor=#1E8449;fontSize=10;dashed=1;dashPattern=6 4;endArrow=block;endFill=1;" target="agent" value="reward + rollout data">
+          <mxGeometry relative="1" x="0.3353" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="1390" y="563" />
+              <mxPoint x="1390" y="145" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
