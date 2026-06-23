@@ -1,5 +1,12 @@
+from pyexpat import features
+
+from matplotlib.pyplot import close
+import numpy as np
 import pandas as pd
 import yfinance as yf
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, log_loss, roc_auc_score
+from sklearn.preprocessing import MinMaxScaler
 from ta.momentum import RSIIndicator
 from ta.trend import MACD
 from ta.volatility import BollingerBands, AverageTrueRange
@@ -33,6 +40,9 @@ def compute_features(df: pd.DataFrame, market_df: pd.DataFrame) -> pd.DataFrame:
     ).on_balance_volume()
 
     features['hlc3'] = (features['High'] + features['Low'] + features['Close']) / 3
+
+    # rsi scaled
+    features['rsi_scaled'] = features['rsi'] / 100
 
     # Apply transformation to make features scale-invariant and generalise across time periods
     close = features['Close']
@@ -99,3 +109,104 @@ def get_ticker_features(ticker: str, start: str, end: str) -> pd.DataFrame:
     df = download_ticker(ticker, start, end)
     market_df = download_ticker('SPY', start=start, end=end)
     return compute_features(df, market_df)
+
+def get_model_data(tickers: dict[str, pd.DataFrame], features: list[str], forecast_horizon: int) -> pd.DataFrame:
+    target_col = f'target_up_{forecast_horizon}d'
+    required_cols = features + ['target_close']
+    model_frames = []
+
+    for ticker, df in tickers.items():
+        missing_cols = [col for col in required_cols if col not in df.columns]
+        if missing_cols:
+            raise ValueError(f'{ticker} is missing required columns: {missing_cols}')
+
+        ticker_model_data = df.copy()
+        future_close = ticker_model_data['target_close'].shift(-forecast_horizon)
+        ticker_model_data[target_col] = np.where(
+            future_close.notna(),
+            future_close > ticker_model_data['target_close'],
+            np.nan,
+        )
+        ticker_model_data['ticker'] = ticker
+        model_frames.append(ticker_model_data)
+
+    model_data = pd.concat(model_frames).replace([np.inf, -np.inf], np.nan)
+    return model_data.dropna(subset=features + [target_col])
+
+def get_train_test_data(
+    model_data: pd.DataFrame,
+    features: list[str],
+    target_col: str,
+    train_end: str,
+    test_start: str,
+):
+    required_cols = features + [target_col]
+    missing_cols = [col for col in required_cols if col not in model_data.columns]
+    if missing_cols:
+        raise ValueError(f'model_data is missing required columns: {missing_cols}')
+
+    train_rows = model_data[model_data.index <= train_end]
+    test_rows = model_data[model_data.index >= test_start]
+
+    scaler = MinMaxScaler()
+    X_train = scaler.fit_transform(train_rows[features])
+    X_test = scaler.transform(test_rows[features])
+    y_train = train_rows[target_col].astype(int).to_numpy()
+    y_test = test_rows[target_col].astype(int).to_numpy()
+
+    return train_rows, test_rows, scaler, X_train, X_test, y_train, y_test
+
+def get_naive_baseline_results(y_test: np.ndarray, forecast_horizon: int) -> pd.DataFrame:
+    naive_positive_rate = y_test.mean()
+    naive_pred_class = int(naive_positive_rate >= 0.5)
+    naive_pred = np.full(len(y_test), naive_pred_class)
+    naive_prob = np.full(len(y_test), naive_positive_rate)
+
+    naive_baseline_results = pd.DataFrame([
+        {
+            'model': 'Naive majority baseline',
+            'forecast_horizon': f'{forecast_horizon}d',
+            'samples': len(y_test),
+            'up_rate': naive_positive_rate,
+            'predicted_class': naive_pred_class,
+            'accuracy': accuracy_score(y_test, naive_pred),
+            'log_loss': log_loss(y_test, naive_prob, labels=[0, 1]),
+            'auc': 0.5,
+        }
+    ])
+
+    metric_cols = ['up_rate', 'accuracy', 'log_loss', 'auc']
+    naive_baseline_results[metric_cols] = naive_baseline_results[metric_cols].round(4)
+    return naive_baseline_results
+
+def get_logistic_regression_results(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    X_test: np.ndarray,
+    y_test: np.ndarray,
+    forecast_horizon: int,
+):
+    logistic_model = LogisticRegression(
+        max_iter=2000,
+        random_state=42,
+    )
+    logistic_model.fit(X_train, y_train)
+
+    y_prob = logistic_model.predict_proba(X_test)[:, 1]
+    y_pred = (y_prob >= 0.5).astype(int)
+
+    logistic_results = pd.DataFrame([
+        {
+            'model': 'Logistic regression',
+            'forecast_horizon': f'{forecast_horizon}d',
+            'samples': len(y_test),
+            'up_rate': y_test.mean(),
+            'accuracy': accuracy_score(y_test, y_pred),
+            'log_loss': log_loss(y_test, y_prob, labels=[0, 1]),
+            'auc': roc_auc_score(y_test, y_prob),
+        },
+    ])
+
+    metric_cols = ['up_rate', 'accuracy', 'log_loss', 'auc']
+    logistic_results[metric_cols] = logistic_results[metric_cols].round(4)
+    return logistic_model, logistic_results
