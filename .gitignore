@@ -1,0 +1,4 @@
+.ipynb_checkpoints
+tmp
+trained_models
+__pycache__
