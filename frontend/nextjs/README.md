@@ -6,6 +6,20 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 npx create-next-app@latest nextjs --yes
 ```
 
+Add ShadCN design system with theme preset using:
+
+```bash
+npx shadcn@latest init --preset b7BFbw9b6 --template next
+```
+
+Add the components used to build the chat interface (`components/chat/`) using:
+
+```bash
+npx shadcn@latest add scroll-area input avatar separator skeleton badge sonner
+```
+
+
+
 ## Getting Started
 
 First, run the development server:
