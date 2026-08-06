@@ -19,10 +19,21 @@ const INITIAL_MESSAGES: ChatMessageType[] = [
   },
 ]
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+
 async function fetchAssistantReply(history: ChatMessageType[]): Promise<string> {
-  // Placeholder — replace with a call to your chat API endpoint.
-  await new Promise((resolve) => setTimeout(resolve, 800))
-  return `You said: "${history[history.length - 1]?.content}"`
+  const response = await fetch(`${API_URL}/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message: history[history.length - 1]?.content ?? "" }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Chat request failed with status ${response.status}`)
+  }
+
+  const data: { reply: string } = await response.json()
+  return data.reply
 }
 
 export function Chat() {
