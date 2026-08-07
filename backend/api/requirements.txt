@@ -1,4 +1,14 @@
 fastapi==0.141.1
 uvicorn[standard]==0.52.1
 langchain==1.3.14
+langchain-core==1.5.3
 langchain-ollama==1.1.0
+
+# Used by backend/core (imported for the LSTM prediction tool)
+pandas==3.0.3
+numpy==2.4.6
+scikit-learn==1.9.0
+joblib==1.5.3
+tensorflow==2.21.0
+yfinance==1.4.1
+ta==0.11.0
