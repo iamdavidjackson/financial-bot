@@ -30,6 +30,18 @@ SELECTED_FEATURE_COLS = [
 ]
 
 
+
+
+def get_latest_close(ticker: str) -> float:
+    """Fetch a ticker's most recent closing price, for pricing a trade someone reports today."""
+    data = yf.Ticker(ticker).history(period="5d", auto_adjust=True)
+
+    if data.empty:
+        raise ValueError(f"No recent price data for {ticker}")
+
+    return float(data["Close"].iloc[-1])
+
+
 def download_ticker(ticker: str, start: str, end: str) -> pd.DataFrame:
     data = yf.Ticker(ticker).history(start=start, end=end, auto_adjust=True)
 
