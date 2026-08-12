@@ -5,10 +5,13 @@ from ta.trend import IchimokuIndicator
 from ta.volume import OnBalanceVolumeIndicator, VolumePriceTrendIndicator
 from ta.volatility import BollingerBands
 
+# Trading days in the rolling window used to normalize each level column.
+ZSCORE_WINDOW = 60
 
 OHLCV_COLS = ["Open", "High", "Low", "Close", "Volume"]
 
-SELECTED_FEATURE_COLS = [
+# these are raw prices or volume levels which need to be normalized
+LEVEL_COLS = [
     "Open",
     "Close",
     "High",
@@ -29,7 +32,8 @@ SELECTED_FEATURE_COLS = [
     "bbu",
 ]
 
-
+# this is the feature set used for modeling, after z-scoring each level column
+SELECTED_FEATURE_COLS = [f"{col}_z" for col in LEVEL_COLS]
 
 
 def get_latest_close(ticker: str) -> float:
@@ -194,6 +198,19 @@ def holt_winter_moving_average(
     return pd.Series(values, index=series.index)
 
 
+# Normalize features using rolling z-scores
+def rolling_zscore(features: pd.DataFrame, cols: list[str], window: int) -> pd.DataFrame:
+    """Calculate rolling z-scores for specified columns in a DataFrame."""
+    normalized = features.copy()
+
+    for col in cols:
+        rolling_mean = features[col].rolling(window).mean()
+        rolling_std = features[col].rolling(window).std().replace(0, np.nan)
+        normalized[f"{col}_z"] = (features[col] - rolling_mean) / rolling_std
+
+    return normalized
+
+
 def compute_technical_features(data: pd.DataFrame) -> pd.DataFrame:
     """Calculate the feature set used by the yfinance exploration notebook."""
     features = data.copy()
@@ -230,6 +247,8 @@ def compute_technical_features(data: pd.DataFrame) -> pd.DataFrame:
     features["ichimoku"] = (
         ichimoku.ichimoku_a() + ichimoku.ichimoku_b()
     ) / 2
+
+    features = rolling_zscore(features, LEVEL_COLS, window=ZSCORE_WINDOW)
 
     return features.dropna(subset=SELECTED_FEATURE_COLS)
 

@@ -39,8 +39,10 @@ VALIDATION_END = (pd.Timestamp(TEST_START) - pd.Timedelta(days=1)).strftime("%Y-
 VALIDATION_START = (pd.Timestamp(VALIDATION_END) - pd.DateOffset(years=1) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
 TRAIN_MODEL_END = (pd.Timestamp(VALIDATION_START) - pd.Timedelta(days=1)).strftime("%Y-%m-%d")
 TRAIN_START = (pd.Timestamp(TRAIN_MODEL_END) - pd.DateOffset(years=2) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
-# Give moving averages like sma50 enough warm-up data before the training window starts.
-FEATURE_START = (pd.Timestamp(TRAIN_START) - pd.DateOffset(months=3)).strftime("%Y-%m-%d")
+# Give moving averages like sma50, plus the 60-trading-day rolling z-score window
+# core.fetch_data.rolling_zscore needs on top of that, enough warm-up data before
+# the training window starts.
+FEATURE_START = (pd.Timestamp(TRAIN_START) - pd.DateOffset(months=6)).strftime("%Y-%m-%d")
 
 # Use a 30-day input window to predict the 5-trading-day return.
 FORECAST_HORIZON = 5

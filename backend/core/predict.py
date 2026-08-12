@@ -17,9 +17,9 @@ SCALERS_PATH = MODEL_DIR / "all_tickers_5d_return.scalers.joblib"
 
 FEATURE_COLS = list(dict.fromkeys(SELECTED_FEATURE_COLS))
 WINDOW_SIZE = 30
-# Comfortably covers the longest technical indicator lookback (sma50) plus the
-# WINDOW_SIZE window, with margin for weekends and holidays.
-FEATURE_LOOKBACK_DAYS = 180
+
+# Accounts for SMA50 lookback, z-score window, and margin for weekends/holidays.
+FEATURE_LOOKBACK_DAYS = 320
 
 _model = None
 _scalers = None
@@ -35,11 +35,7 @@ def _load_model():
 
 
 def _get_scalers():
-    """Load the pooled feature/target scalers the model was trained with.
-
-    backend/training/train_all_tickers.py saves these alongside the model, so this
-    file should always be present. Run that script if it's missing.
-    """
+    """Load the scalars used when training the model."""
     global _scalers
     if _scalers is None:
         if not SCALERS_PATH.exists():

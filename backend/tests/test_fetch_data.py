@@ -9,6 +9,7 @@ from core.fetch_data import (
     fibonacci_weighted_moving_average,
     holt_winter_moving_average,
     hull_moving_average,
+    rolling_zscore,
     smooth_ohlcv_outliers,
     triple_exponential_moving_average,
     verify_ohlcv_rows,
@@ -122,16 +123,22 @@ def test_smooth_ohlcv_outliers_replaces_extreme_spike():
     assert report.loc[report["column"] == "Close", "outlier_count"].iloc[0] == 1
 
 
-def _synthetic_ohlcv(periods: int = 150) -> pd.DataFrame:
+def _synthetic_ohlcv(periods: int = 250) -> pd.DataFrame:
     dates = pd.date_range("2023-01-02", periods=periods, freq="B")
-    close = 100 + np.cumsum(np.random.default_rng(0).normal(0, 1, size=periods))
+    rng = np.random.default_rng(0)
+    close = 100 + np.cumsum(rng.normal(0, 1, size=periods))
+    # Real trading volume is never perfectly flat day to day. A constant series
+    # here would give rolling_zscore a zero-variance window (see rolling_zscore's
+    # NaN-on-zero-std guard), which would drop every row once Volume_z joins
+    # SELECTED_FEATURE_COLS.
+    volume = 1_000_000.0 + rng.normal(0, 50_000.0, size=periods)
     return pd.DataFrame(
         {
             "Open": close,
             "High": close + 1,
             "Low": close - 1,
             "Close": close,
-            "Volume": np.full(periods, 1_000_000.0),
+            "Volume": volume,
         },
         index=dates,
     )
@@ -146,3 +153,46 @@ def test_compute_technical_features_produces_all_selected_columns():
     for col in SELECTED_FEATURE_COLS:
         assert col in features.columns
     assert not features[SELECTED_FEATURE_COLS].isna().any().any()
+    # The raw Close column must survive untouched: targets and portfolio
+    # prices need real dollar values, not the normalized "Close_z" feature.
+    assert "Close" in features.columns
+
+
+def test_rolling_zscore_leaves_early_rows_nan_until_the_window_fills():
+    features = pd.DataFrame({"price": [10.0] * 5 + [20.0] * 5})
+
+    result = rolling_zscore(features, ["price"], window=5)
+
+    assert result["price_z"].iloc[:4].isna().all()
+
+
+def test_rolling_zscore_handles_a_flat_window_without_producing_inf():
+    features = pd.DataFrame({"price": [10.0] * 6})
+
+    result = rolling_zscore(features, ["price"], window=5)
+
+    # Zero rolling variance divides out to NaN, not +/-inf.
+    assert not np.isinf(result["price_z"]).any()
+
+
+def test_rolling_zscore_flags_a_value_above_its_own_trailing_average():
+    features = pd.DataFrame({"price": [10.0, 10.0, 10.0, 10.0, 10.0, 20.0]})
+
+    result = rolling_zscore(features, ["price"], window=5)
+
+    assert result["price_z"].iloc[-1] > 0
+
+
+def test_rolling_zscore_puts_a_cheap_and_an_expensive_ticker_on_the_same_scale():
+    # Same relative pattern (a flat run, then a steady climb), wildly different
+    # absolute price levels (expensive is exactly 40x cheap throughout). Both
+    # should land on the same z-score, which is the whole point: a pooled model
+    # shouldn't be able to tell these two tickers apart just from the feature's
+    # raw level.
+    cheap = pd.DataFrame({"price": [10.0, 10.0, 10.0, 10.0, 11.0, 12.0, 13.0, 14.0]})
+    expensive = pd.DataFrame({"price": [p * 40 for p in cheap["price"]]})
+
+    cheap_z = rolling_zscore(cheap, ["price"], window=4)["price_z"].iloc[-1]
+    expensive_z = rolling_zscore(expensive, ["price"], window=4)["price_z"].iloc[-1]
+
+    assert cheap_z == pytest.approx(expensive_z, rel=1e-6)
