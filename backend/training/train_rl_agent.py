@@ -25,6 +25,11 @@ RANDOM_SEED = 42
 PORTFOLIO_TICKERS = TICKER_GROUPS["Utilities"][:5]
 PPO_TIMESTEPS = 10_000
 
+INITIAL_CASH = 100_000.0
+TRANSACTION_COST = 0.001
+TRADE_FRACTION = 0.25
+REWARD_SCALE = INITIAL_CASH
+
 
 def make_synthetic_rl_data(tickers, n_days: int = 500, seed: int = RANDOM_SEED):
     """Generate correlated synthetic prices and noisy momentum-based signals.
@@ -55,7 +60,14 @@ def make_synthetic_rl_data(tickers, n_days: int = 500, seed: int = RANDOM_SEED):
 
 def make_env():
     prices, signals = make_synthetic_rl_data(PORTFOLIO_TICKERS)
-    return PortfolioEnv(prices, signals)
+    return PortfolioEnv(
+        prices,
+        signals,
+        initial_cash=INITIAL_CASH,
+        transaction_cost=TRANSACTION_COST,
+        trade_fraction=TRADE_FRACTION,
+        reward_scale=REWARD_SCALE,
+    )
 
 
 def train():
