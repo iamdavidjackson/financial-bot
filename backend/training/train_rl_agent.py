@@ -19,29 +19,42 @@ from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.env_util import make_vec_env
 
 from core.portfolio_env import PortfolioEnv
+from core.tickers import TICKER_GROUPS
 
 RANDOM_SEED = 42
+PORTFOLIO_TICKERS = TICKER_GROUPS["Utilities"][:5]
 PPO_TIMESTEPS = 10_000
 
 
-def make_synthetic_prices(n_days: int = 500, seed: int = RANDOM_SEED):
-    """Generate a synthetic random walk and a noisy momentum-based signal.
+def make_synthetic_rl_data(tickers, n_days: int = 500, seed: int = RANDOM_SEED):
+    """Generate correlated synthetic prices and noisy momentum-based signals.
 
     Verifies the environment and PPO integration only; not real market data.
     """
     rng = np.random.default_rng(seed)
     dates = pd.bdate_range("2020-01-01", periods=n_days)
-    returns = rng.normal(0.0003, 0.01, n_days)
-    prices = pd.Series(100 * np.exp(np.cumsum(returns)), index=dates)
+    n_assets = len(tickers)
+
+    # Give every asset a shared market move plus its own idiosyncratic noise,
+    # so prices are correlated the way real tickers in one sector would be.
+    market_returns = rng.normal(0.0003, 0.008, n_days)
+    asset_returns = market_returns[:, None] + rng.normal(0, 0.006, (n_days, n_assets))
+
+    starting_prices = rng.uniform(40, 180, n_assets)
+    prices = pd.DataFrame(
+        starting_prices * np.exp(np.cumsum(asset_returns, axis=0)),
+        index=dates,
+        columns=tickers,
+    )
 
     momentum = prices.pct_change().rolling(10).mean()
-    signal = (1 / (1 + np.exp(-30 * momentum))).fillna(0.5)
+    signals = (1 / (1 + np.exp(-30 * momentum))).fillna(0.5)
 
-    return prices, signal
+    return prices, signals
 
 
 def make_env():
-    prices, signals = make_synthetic_prices()
+    prices, signals = make_synthetic_rl_data(PORTFOLIO_TICKERS)
     return PortfolioEnv(prices, signals)
 
 
