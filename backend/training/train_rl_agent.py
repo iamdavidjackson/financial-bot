@@ -18,7 +18,7 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.env_util import make_vec_env
 
-from core.portfolio_env import PortfolioEnv
+from core.portfolio_env import PortfolioEnv, make_buy_and_hold_curve, portfolio_metrics
 from core.tickers import TICKER_GROUPS
 
 RANDOM_SEED = 42
@@ -29,6 +29,9 @@ INITIAL_CASH = 100_000.0
 TRANSACTION_COST = 0.001
 TRADE_FRACTION = 0.25
 REWARD_SCALE = INITIAL_CASH
+
+# Use 80% of the data for training and 20% for testing
+TRAIN_FRACTION = 0.8
 
 
 def make_synthetic_rl_data(tickers, n_days: int = 500, seed: int = RANDOM_SEED):
@@ -58,8 +61,15 @@ def make_synthetic_rl_data(tickers, n_days: int = 500, seed: int = RANDOM_SEED):
     return prices, signals
 
 
-def make_env():
-    prices, signals = make_synthetic_rl_data(PORTFOLIO_TICKERS)
+def split_train_test(prices, signals):
+    """Split data into training and testing sets."""
+    split_index = int(len(prices) * TRAIN_FRACTION)
+    train_prices, test_prices = prices.iloc[:split_index], prices.iloc[split_index:]
+    train_signals, test_signals = signals.iloc[:split_index], signals.iloc[split_index:]
+    return train_prices, train_signals, test_prices, test_signals
+
+
+def make_env(prices, signals):
     return PortfolioEnv(
         prices,
         signals,
@@ -70,21 +80,73 @@ def make_env():
     )
 
 
-def train():
-    check_env(make_env(), warn=True)
+def evaluate_policy(model, environment):
+    # Run one PPO episode to see how it performs on the test set.
+    obs, info = environment.reset(seed=RANDOM_SEED)
+    terminated = truncated = False
 
-    vec_env = make_vec_env(make_env, n_envs=1, seed=RANDOM_SEED)
+    while not (terminated or truncated):
+        action, _states = model.predict(obs, deterministic=True)
+        obs, reward, terminated, truncated, info = environment.step(action)
+
+    return pd.DataFrame(environment.history).set_index("date")
+
+
+def evaluate_random_policy(environment, seed=RANDOM_SEED):
+    """Run one random-action episode as an evaluation baseline."""
+    obs, info = environment.reset(seed=seed)
+    environment.action_space.seed(seed)
+    terminated = truncated = False
+
+    while not (terminated or truncated):
+        action = environment.action_space.sample()
+        obs, reward, terminated, truncated, info = environment.step(action)
+
+    return pd.DataFrame(environment.history).set_index("date")
+
+
+def train() -> pd.DataFrame:
+    prices, signals = make_synthetic_rl_data(PORTFOLIO_TICKERS)
+    train_prices, train_signals, test_prices, test_signals = split_train_test(prices, signals)
+
+    print(f"Train dates: {train_prices.index[0].date()} to {train_prices.index[-1].date()}")
+    print(f"Test dates:  {test_prices.index[0].date()} to {test_prices.index[-1].date()}")
+
+    # check_env verifies Gymnasium API compliance before spending time on training.
+    check_env(make_env(train_prices.iloc[:100], train_signals.iloc[:100]), warn=True)
+
+    vec_env = make_vec_env(lambda: make_env(train_prices, train_signals), n_envs=1, seed=RANDOM_SEED)
 
     model = PPO("MlpPolicy", vec_env, verbose=1, seed=RANDOM_SEED)
     model.learn(total_timesteps=PPO_TIMESTEPS, progress_bar=True)
 
-    # Same predict/step shape as the ppo.html usage example.
-    obs = vec_env.reset()
-    for _ in range(20):
-        action, _states = model.predict(obs, deterministic=True)
-        obs, reward, done, info = vec_env.step(action)
-        print(f"action={action[0]} reward={reward[0]:.2f} portfolio_value={info[0]['portfolio_value']:.2f}")
+    ppo_history = evaluate_policy(model, make_env(test_prices, test_signals))
+    random_history = evaluate_random_policy(make_env(test_prices, test_signals))
+
+    portfolio_curves = pd.DataFrame(
+        {
+            "PPO": ppo_history["portfolio_value"],
+            "Random policy": random_history["portfolio_value"],
+            "Buy and hold": make_buy_and_hold_curve(test_prices, INITIAL_CASH, TRANSACTION_COST),
+            "Cash": pd.Series(INITIAL_CASH, index=test_prices.index),
+        }
+    ).dropna()
+
+    results_df = pd.DataFrame(
+        {strategy: portfolio_metrics(portfolio_curves[strategy]) for strategy in portfolio_curves.columns}
+    ).T
+
+    metric_cols = [
+        "total_return",
+        "annualised_return",
+        "annualised_volatility",
+        "sharpe_ratio",
+        "max_drawdown",
+    ]
+    results_df[metric_cols] = results_df[metric_cols].round(4)
+    results_df["final_value"] = results_df["final_value"].round(2)
+    return results_df
 
 
 if __name__ == "__main__":
-    train()
+    print(train().to_string())

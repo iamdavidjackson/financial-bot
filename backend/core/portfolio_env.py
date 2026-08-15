@@ -10,6 +10,25 @@ import pandas as pd
 from gymnasium import Env, spaces
 
 
+def validate_rl_data(prices: pd.DataFrame, signals: pd.DataFrame, tickers) -> None:
+    """Check that price and LSTM-signal inputs are uasble."""
+    # Check these values to so we can fail fast if there is a problem.
+    if not prices.index.equals(signals.index):
+        raise ValueError("index mismatch error")
+    if list(prices.columns) != list(signals.columns):
+        raise ValueError("column mismatch error")
+    if list(prices.columns) != list(tickers):
+        raise ValueError("ticker mismatch error")
+    if prices.isna().any().any() or signals.isna().any().any():
+        raise ValueError("missing values error")
+    if (prices <= 0).any().any():
+        raise ValueError("negative prices are not allowed")
+    if ((signals < 0) | (signals > 1)).any().any():
+        raise ValueError("LSTM values must be between 0 and 1")
+    if len(prices) < 3:
+        raise ValueError("not enough data error")
+
+
 class PortfolioEnv(Env):
     """Daily Hold/Buy/Sell portfolio environment driven by LSTM directional data."""
 
@@ -32,6 +51,8 @@ class PortfolioEnv(Env):
         reward_scale: float = 100_000.0,
     ):
         super().__init__()
+        # validate data so we can fail fast if there is a problem.
+        validate_rl_data(prices, signals, prices.columns)
 
         self.prices_df = prices.astype(np.float32)
         self.signals_df = signals.astype(np.float32)
@@ -80,15 +101,26 @@ class PortfolioEnv(Env):
         ).astype(np.float32)
 
     def reset(self, seed=None, options=None):
+        # start with all cash on day 0 of the given price window.
         super().reset(seed=seed)
         self.current_step = 0
         self.cash = self.initial_cash
         self.holdings = np.zeros(self.n_assets, dtype=np.float32)
         self.episode_start_prices = self.prices[0].copy()
+        self.history = [
+            {
+                "date": self.dates[0],
+                "portfolio_value": self.initial_cash,
+                "cash": self.cash,
+                "transaction_costs": 0.0,
+                "raw_reward": 0.0,
+                "action": np.full(self.n_assets, self.HOLD, dtype=np.int64),
+            }
+        ]
         return self._get_observation(), {}
 
     def _execute_trades(self, action: np.ndarray, current_prices: np.ndarray, portfolio_value: float) -> float:
-        # I need to process the Sell actions before any Buy. This raises cash first, so a Buy on
+        # process the Sell actions before Buy actions. This raises cash first, so a Buy on
         # the same step can draw on proceeds from a Sell on the same step.
         transaction_costs = 0.0
 
@@ -112,8 +144,7 @@ class PortfolioEnv(Env):
             if remaining_buys <= 0 or self.cash <= 0:
                 break
 
-            # I split the remaining cash evenly across the assets still waiting to
-            # buy this step, so the first ticker in the list doesn't take it all.
+            # split the remaining cash evenly
             budget = min(
                 portfolio_value * self.trade_fraction,
                 self.cash / remaining_buys,
@@ -144,18 +175,23 @@ class PortfolioEnv(Env):
         new_prices = self.prices[self.current_step]
         new_value = self._portfolio_value(new_prices)
         raw_reward = new_value - previous_value
-        # I scale the dollar change by reward_scale (initial cash) so PPO trains
-        # on rewards in a small, stable range instead of raw dollar amounts.
+        # the dollar reward is scaled down to keep the PPO loss function in a reasonable range.
         reward = raw_reward / self.reward_scale
 
         # The episode ends once there's no next day left to price the portfolio on.
         terminated = self.current_step >= len(self.prices) - 1
         truncated = False
+
         info = {
+            "date": self.dates[self.current_step],
             "portfolio_value": new_value,
+            "cash": self.cash,
+            "holdings": self.holdings.copy(),
             "transaction_costs": transaction_costs,
             "raw_reward": raw_reward,
+            "action": action.copy(),
         }
+        self.history.append(info)
 
         return self._get_observation(), float(reward), terminated, truncated, info
 
@@ -166,3 +202,36 @@ class PortfolioEnv(Env):
             f"value={self._portfolio_value(current_prices):,.2f} | "
             f"cash={self.cash:,.2f}"
         )
+
+
+def make_buy_and_hold_curve(prices: pd.DataFrame, initial_cash: float, transaction_cost: float) -> pd.Series:
+    # I buy an equal dollar amount of each ticker on day 1 and hold to the end.
+    # This is the baseline I compare PPO against.
+    first_prices = prices.iloc[0].to_numpy()
+    allocation = initial_cash / len(prices.columns)
+    shares = np.floor(allocation / (first_prices * (1 + transaction_cost)))
+    purchase_cost = np.sum(shares * first_prices * (1 + transaction_cost))
+    remaining_cash = initial_cash - purchase_cost
+    values = remaining_cash + prices.to_numpy() @ shares
+    return pd.Series(values, index=prices.index, name="Buy and hold")
+
+
+def portfolio_metrics(values: pd.Series) -> dict:
+    # These are the metrics I use to compare PPO against the baseline.
+    returns = values.pct_change().dropna()
+    total_return = values.iloc[-1] / values.iloc[0] - 1
+    # There are only 252 trading days in a year instead of 365.
+    annualised_return = (1 + total_return) ** (252 / max(len(returns), 1)) - 1
+    annualised_volatility = returns.std() * np.sqrt(252)
+    # Sharpe ratio is the mean return divided by the standard deviation of returns, annualised.
+    sharpe_ratio = returns.mean() / returns.std() * np.sqrt(252) if returns.std() > 0 else np.nan
+    drawdown = values / values.cummax() - 1
+
+    return {
+        "final_value": values.iloc[-1],
+        "total_return": total_return,
+        "annualised_return": annualised_return,
+        "annualised_volatility": annualised_volatility,
+        "sharpe_ratio": sharpe_ratio,
+        "max_drawdown": drawdown.min(),
+    }
