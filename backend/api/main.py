@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.fetch_data import get_latest_close
-from core.portfolio_agent import PORTFOLIO_TICKERS, recommend_trades
+from core.portfolio_agent import PORTFOLIO_TICKER_NAMES, PORTFOLIO_TICKERS, recommend_trades
 from core.portfolio_store import get_portfolio, record_trade, reset_portfolio
 from core.predict import predict_stock_return
 from core.tickers import TICKERS
@@ -124,13 +124,21 @@ agent = create_agent(
         "outlook, use the get_stock_return_prediction tool rather than guessing, then "
         "explain the result in plain, non-technical language. Always make clear this "
         "is a model prediction, not financial advice.\n\n"
+        "get_stock_return_prediction only works for these tickers, so use the exact symbol "
+        "from this list and do not guess or invent one:\n"
+        f"{', '.join(TICKERS)}.\n"
+        "If the user names a company that is not in this list, tell them it is not supported "
+        "instead of substituting a different ticker.\n\n"
         "Use get_portfolio_positions whenever you need to know the user's current cash or "
         "holdings, including before answering questions about their portfolio. When the user "
         "asks what they should buy, sell, or hold, or otherwise asks for trading advice on their "
         "portfolio, use get_portfolio_trade_recommendation rather than guessing, then explain "
         "each recommended action in plain language along with the reasoning available (current "
-        "price, holding size, signal strength). Always make clear this is a trained model's "
-        "suggestion, not financial advice, and that it only covers the tickers it was trained on. "
+        "price, holding size, signal strength) and, for each buy or sell, how many shares the "
+        "agent would trade (recommended_shares) and the rough dollar value. Always make clear this is a trained model's "
+        "suggestion, not financial advice, and that it only covers the tickers it was trained on, "
+        "which are: "
+        f"{', '.join(f'{ticker} ({PORTFOLIO_TICKER_NAMES.get(ticker, ticker)})' for ticker in PORTFOLIO_TICKERS)}. "
         "When the user says they bought or sold shares (e.g. 'I bought 20 shares of AAPL'), call "
         "record_portfolio_trade to log it, then confirm what was recorded and the resulting "
         "cash balance. If a trade fails (e.g. not enough cash or shares), explain why in plain "

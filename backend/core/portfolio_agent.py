@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import joblib
+import numpy as np
 import pandas as pd
 
 from .fetch_data import SELECTED_FEATURE_COLS, get_ticker_features
@@ -11,6 +12,13 @@ from .tickers import TICKER_GROUPS
 
 # Only training the PPO on 5 Utility tickers for testing - each portfolio agent needs to be trained on tickers separately
 PORTFOLIO_TICKERS = TICKER_GROUPS["Utilities"][:5]
+PORTFOLIO_TICKER_NAMES = {
+    "NEE": "NextEra Energy, Inc.",
+    "SO": "The Southern Company",
+    "DUK": "Duke Energy Corporation",
+    "AEP": "American Electric Power Company, Inc.",
+    "EXC": "Exelon Corporation",
+}
 INITIAL_CASH = 100_000.0
 TRANSACTION_COST = 0.001
 TRADE_FRACTION = 0.25
@@ -97,6 +105,50 @@ def _load_recent_prices_and_signals() -> tuple[pd.DataFrame, pd.DataFrame]:
     return prices_df, signals_df
 
 
+def _plan_trade_sizes(
+    action: np.ndarray,
+    current_prices: np.ndarray,
+    cash: float,
+    holdings: np.ndarray,
+    portfolio_value: float,
+) -> dict[int, int]:
+    """Work out how many shares each Buy/Sell action would move today.
+
+    Mirrors PortfolioEnv._execute_trades: sells are sized first (they raise cash the
+    same-step buys can draw on), then the remaining buy budget is split evenly across
+    the tickers still to buy. Runs on copies so the real portfolio is untouched.
+    """
+    cash = float(cash)
+    holdings = holdings.astype("float64").copy()
+    planned = {index: 0 for index in range(len(action))}
+
+    for index in np.flatnonzero(action == PortfolioEnv.SELL):
+        shares = int(np.ceil(holdings[index] * TRADE_FRACTION))
+        shares = min(shares, int(holdings[index]))
+        if shares <= 0:
+            continue
+        gross_proceeds = shares * current_prices[index]
+        cash += gross_proceeds - gross_proceeds * TRANSACTION_COST
+        holdings[index] -= shares
+        planned[index] = shares
+
+    buy_indexes = np.flatnonzero(action == PortfolioEnv.BUY)
+    remaining_buys = len(buy_indexes)
+    for index in buy_indexes:
+        if remaining_buys <= 0 or cash <= 0:
+            break
+        budget = min(portfolio_value * TRADE_FRACTION, cash / remaining_buys)
+        price_with_cost = current_prices[index] * (1 + TRANSACTION_COST)
+        shares = int(np.floor(budget / price_with_cost))
+        if shares > 0:
+            gross_cost = shares * current_prices[index]
+            cash -= gross_cost + gross_cost * TRANSACTION_COST
+            planned[index] = shares
+        remaining_buys -= 1
+
+    return planned
+
+
 def recommend_trades() -> dict:
     # Asks the trained PPO agent what to do with each tracked ticker today, given the real portfolio.
     ppo_model = _load_ppo_model()
@@ -128,13 +180,22 @@ def recommend_trades() -> dict:
     as_of_date = env.dates[env.current_step]
     current_prices = env.prices[env.current_step]
 
+    portfolio_value = float(env.cash + np.dot(env.holdings, current_prices))
+    planned_shares = _plan_trade_sizes(
+        action, current_prices, env.cash, env.holdings, portfolio_value
+    )
+
     recommendations = {}
     for index, ticker in enumerate(PORTFOLIO_TICKERS):
+        price = float(current_prices[index])
+        shares = planned_shares[index]
         recommendations[ticker] = {
             "action": ACTION_LABELS[int(action[index])],
-            "current_price": round(float(current_prices[index]), 2),
+            "current_price": round(price, 2),
             "current_holding_shares": float(env.holdings[index]),
             "signal_percentile": round(float(env.signals[env.current_step][index]), 4),
+            "recommended_shares": shares,
+            "estimated_trade_value": round(shares * price, 2),
         }
 
     return {

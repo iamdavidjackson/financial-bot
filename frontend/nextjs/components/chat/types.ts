@@ -20,6 +20,8 @@ export interface TradeRecommendation {
   current_price: number
   current_holding_shares: number
   signal_percentile: number
+  recommended_shares: number
+  estimated_trade_value: number
 }
 
 export interface TradeRecommendationsWidget {
