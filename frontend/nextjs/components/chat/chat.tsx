@@ -8,7 +8,7 @@ import { Card, CardAction, CardFooter, CardHeader, CardTitle } from "@/component
 import { Separator } from "@/components/ui/separator"
 import { ChatInput } from "./chat-input"
 import { ChatMessageList } from "./chat-message-list"
-import type { ChatMessageType } from "./types"
+import type { ChatMessageType, ChatWidget } from "./types"
 
 const INITIAL_MESSAGES: ChatMessageType[] = [
   {
@@ -21,7 +21,9 @@ const INITIAL_MESSAGES: ChatMessageType[] = [
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 
-async function fetchAssistantReply(history: ChatMessageType[]): Promise<string> {
+async function fetchAssistantReply(
+  history: ChatMessageType[]
+): Promise<{ reply: string; widgets: ChatWidget[] }> {
   const response = await fetch(`${API_URL}/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -32,8 +34,8 @@ async function fetchAssistantReply(history: ChatMessageType[]): Promise<string> 
     throw new Error(`Chat request failed with status ${response.status}`)
   }
 
-  const data: { reply: string } = await response.json()
-  return data.reply
+  const data: { reply: string; widgets?: ChatWidget[] } = await response.json()
+  return { reply: data.reply, widgets: data.widgets ?? [] }
 }
 
 export function Chat() {
@@ -43,13 +45,14 @@ export function Chat() {
   async function sendToAssistant(history: ChatMessageType[]) {
     setIsLoading(true)
     try {
-      const reply = await fetchAssistantReply(history)
+      const { reply, widgets } = await fetchAssistantReply(history)
       setMessages((current) => [
         ...current,
         {
           id: crypto.randomUUID(),
           role: "assistant",
           content: reply,
+          widgets,
           createdAt: new Date(),
         },
       ])
