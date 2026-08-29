@@ -283,3 +283,32 @@ def regression_metrics(
 def sector_slug(sector: str) -> str:
     """Convert a sector name into a readable filename slug."""
     return re.sub(r"[^a-z0-9]+", "_", sector.lower()).strip("_")
+
+
+def predict_return_series(
+    model: Any,
+    feature_scaler: MinMaxScaler,
+    target_scaler: MinMaxScaler,
+    df: pd.DataFrame,
+    feature_cols: Sequence[str],
+    window_size: int,
+    batch_size: int = 128,
+) -> pd.Series:
+    # Run the frozen model forward one date at a time, so nothing here can see future data.
+    scaled = feature_scaler.transform(df[feature_cols])
+    dates = pd.DatetimeIndex(df.index)
+
+    end_positions = range(window_size - 1, len(df))
+    windows = np.stack(
+        [scaled[end - window_size + 1 : end + 1] for end in end_positions]
+    ).astype(np.float32)
+
+    scaled_predictions = model.predict(windows, batch_size=batch_size, verbose=0).flatten()
+    predicted_returns = inverse_scale_predictions(target_scaler, scaled_predictions)
+
+    return pd.Series(predicted_returns, index=dates[window_size - 1 :], name="predicted_return")
+
+
+def convert_returns_to_signals(predicted_returns: pd.DataFrame) -> pd.DataFrame:
+    # Rank each date's tickers against each other, so the signal stays between 0 and 1.
+    return predicted_returns.rank(axis=1, pct=True).astype(np.float32)

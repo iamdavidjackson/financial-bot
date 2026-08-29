@@ -25,6 +25,15 @@ _model = None
 _scalers = None
 
 
+def _signal_from_return(predicted_return: float, buy: float = 0.01, sell: float = -0.01) -> str:
+    """Turn a predicted 5-day return into a buy / hold / sell label."""
+    if predicted_return >= buy:
+        return "buy"
+    if predicted_return <= sell:
+        return "sell"
+    return "hold"
+
+
 def _load_model():
     global _model
     if _model is None:
@@ -85,6 +94,8 @@ def predict_stock_return(ticker: str) -> dict:
         "ticker": ticker,
         "as_of_date": str(as_of_date.date()),
         "current_close": round(current_close, 2),
-        "predicted_return_5d_pct": f"{predicted_return:+.2%}",
         "predicted_close_5d": round(predicted_close, 2),
+        "predicted_return_5d": round(predicted_return, 4),
+        "predicted_return_5d_pct": f"{predicted_return:+.2%}",
+        "signal": _signal_from_return(predicted_return),
     }

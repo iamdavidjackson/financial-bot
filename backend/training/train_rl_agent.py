@@ -7,65 +7,96 @@ Based on guidance here:
   (vec_env/model/train-predict usage example)
 """
 
+import logging
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import numpy as np
 import pandas as pd
+import torch.nn as nn
 from stable_baselines3 import PPO
+from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.env_util import make_vec_env
+from stable_baselines3.common.utils import safe_mean
 
-from core.portfolio_env import PortfolioEnv, make_buy_and_hold_curve, portfolio_metrics
+from core.portfolio_env import PortfolioEnv, make_buy_and_hold_curve, portfolio_metrics, validate_rl_data
 from core.tickers import TICKER_GROUPS
+
+# Need to include timestamps with the logs 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    stream=sys.stdout,
+)
+logger = logging.getLogger(__name__)
 
 RANDOM_SEED = 42
 PORTFOLIO_TICKERS = TICKER_GROUPS["Utilities"][:5]
-PPO_TIMESTEPS = 10_000
+LSTM_SIGNAL_HORIZON = 5
 
 INITIAL_CASH = 100_000.0
 TRANSACTION_COST = 0.001
 TRADE_FRACTION = 0.25
 REWARD_SCALE = INITIAL_CASH
 
-# Use 80% of the data for training and 20% for testing
-TRAIN_FRACTION = 0.8
+TRAIN_END = "2023-12-31"
+TEST_START = "2024-01-01"
+
+PPO_TIMESTEPS = 25_000
+
+RL_DATA_DIR = Path(__file__).resolve().parent.parent / "training_data" / "rl"
+PRICE_PATH = RL_DATA_DIR / "prices.parquet"
+SIGNAL_PATH = RL_DATA_DIR / f"lstm_signals_{LSTM_SIGNAL_HORIZON}d.parquet"
+
+MODEL_DIR = Path(__file__).resolve().parent.parent / "trained_models" / "ppo_portfolio_agent"
+MODEL_PATH = MODEL_DIR / "ppo_portfolio_agent"
+
+TENSORBOARD_LOG_DIR = Path(__file__).resolve().parent.parent / "training_logs" / "ppo"
+
+POLICY_KWARGS = {
+    "activation_fn": nn.ReLU,
+    "net_arch": {"pi": [64, 64], "vf": [64, 64]},
+}
 
 
-def make_synthetic_rl_data(tickers, n_days: int = 500, seed: int = RANDOM_SEED):
-    """Generate correlated synthetic prices and noisy momentum-based signals.
+class IterationLoggingCallback(BaseCallback):
+    # Logs a timestamped line after each PPO rollout/update iteration.
+    def __init__(self):
+        super().__init__()
+        self.iteration = 0
 
-    Verifies the environment and PPO integration only; not real market data.
-    """
-    rng = np.random.default_rng(seed)
-    dates = pd.bdate_range("2020-01-01", periods=n_days)
-    n_assets = len(tickers)
+    def _on_step(self) -> bool:
+        return True
 
-    # Give every asset a shared market move plus its own idiosyncratic noise,
-    # so prices are correlated the way real tickers in one sector would be.
-    market_returns = rng.normal(0.0003, 0.008, n_days)
-    asset_returns = market_returns[:, None] + rng.normal(0, 0.006, (n_days, n_assets))
-
-    starting_prices = rng.uniform(40, 180, n_assets)
-    prices = pd.DataFrame(
-        starting_prices * np.exp(np.cumsum(asset_returns, axis=0)),
-        index=dates,
-        columns=tickers,
-    )
-
-    momentum = prices.pct_change().rolling(10).mean()
-    signals = (1 / (1 + np.exp(-30 * momentum))).fillna(0.5)
-
-    return prices, signals
+    def _on_rollout_end(self) -> None:
+        self.iteration += 1
+        ep_rew_mean = safe_mean([ep_info["r"] for ep_info in self.model.ep_info_buffer])
+        logger.info(
+            "PPO iteration %d | timesteps=%d | ep_rew_mean=%.4f",
+            self.iteration,
+            self.num_timesteps,
+            ep_rew_mean,
+        )
 
 
-def split_train_test(prices, signals):
-    """Split data into training and testing sets."""
-    split_index = int(len(prices) * TRAIN_FRACTION)
-    train_prices, test_prices = prices.iloc[:split_index], prices.iloc[split_index:]
-    train_signals, test_signals = signals.iloc[:split_index], signals.iloc[split_index:]
+def load_rl_data(tickers):
+    # Loads aligned prices and LSTM signals, split into train/test.
+    prices = pd.read_parquet(PRICE_PATH)[tickers]
+    signals = pd.read_parquet(SIGNAL_PATH)[tickers]
+    common_dates = prices.index.intersection(signals.index)
+    prices = prices.loc[common_dates]
+    signals = signals.loc[common_dates]
+
+    validate_rl_data(prices, signals, tickers)
+
+    train_prices = prices.loc[prices.index <= TRAIN_END]
+    train_signals = signals.loc[train_prices.index]
+    test_prices = prices.loc[prices.index >= TEST_START]
+    test_signals = signals.loc[test_prices.index]
+
     return train_prices, train_signals, test_prices, test_signals
 
 
@@ -93,7 +124,7 @@ def evaluate_policy(model, environment):
 
 
 def evaluate_random_policy(environment, seed=RANDOM_SEED):
-    """Run one random-action episode as an evaluation baseline."""
+    # Run one random-action episode as an evaluation baseline.
     obs, info = environment.reset(seed=seed)
     environment.action_space.seed(seed)
     terminated = truncated = False
@@ -106,19 +137,39 @@ def evaluate_random_policy(environment, seed=RANDOM_SEED):
 
 
 def train() -> pd.DataFrame:
-    prices, signals = make_synthetic_rl_data(PORTFOLIO_TICKERS)
-    train_prices, train_signals, test_prices, test_signals = split_train_test(prices, signals)
+    logger.info("Starting PPO training run (timesteps=%s)", PPO_TIMESTEPS)
 
-    print(f"Train dates: {train_prices.index[0].date()} to {train_prices.index[-1].date()}")
-    print(f"Test dates:  {test_prices.index[0].date()} to {test_prices.index[-1].date()}")
+    train_prices, train_signals, test_prices, test_signals = load_rl_data(PORTFOLIO_TICKERS)
+
+    logger.info("Train dates: %s to %s", train_prices.index[0].date(), train_prices.index[-1].date())
+    logger.info("Test dates:  %s to %s", test_prices.index[0].date(), test_prices.index[-1].date())
 
     # check_env verifies Gymnasium API compliance before spending time on training.
     check_env(make_env(train_prices.iloc[:100], train_signals.iloc[:100]), warn=True)
 
     vec_env = make_vec_env(lambda: make_env(train_prices, train_signals), n_envs=1, seed=RANDOM_SEED)
 
-    model = PPO("MlpPolicy", vec_env, verbose=1, seed=RANDOM_SEED)
-    model.learn(total_timesteps=PPO_TIMESTEPS, progress_bar=True)
+    model = PPO(
+        policy="MlpPolicy",
+        env=vec_env,
+        policy_kwargs=POLICY_KWARGS,
+        learning_rate=3e-4,
+        n_steps=256,
+        batch_size=64,
+        gamma=0.99,
+        gae_lambda=0.95,
+        clip_range=0.2,
+        ent_coef=0.01,
+        verbose=1,
+        seed=RANDOM_SEED,
+        tensorboard_log=str(TENSORBOARD_LOG_DIR),
+    )
+    model.learn(total_timesteps=PPO_TIMESTEPS, callback=IterationLoggingCallback(), progress_bar=True)
+
+    # Save the trained PPO model and evaluate it on the test set.
+    MODEL_DIR.mkdir(parents=True, exist_ok=True)
+    model.save(MODEL_PATH)
+    logger.info("Saved PPO policy to %s.zip", MODEL_PATH)
 
     ppo_history = evaluate_policy(model, make_env(test_prices, test_signals))
     random_history = evaluate_random_policy(make_env(test_prices, test_signals))
@@ -145,6 +196,8 @@ def train() -> pd.DataFrame:
     ]
     results_df[metric_cols] = results_df[metric_cols].round(4)
     results_df["final_value"] = results_df["final_value"].round(2)
+
+    logger.info("Finished PPO training run")
     return results_df
 
 

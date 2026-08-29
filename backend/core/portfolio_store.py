@@ -34,6 +34,14 @@ def get_portfolio(db_path: Path = DB_PATH) -> dict:
     return {"cash": cash, "holdings": holdings}
 
 
+def reset_portfolio(db_path: Path = DB_PATH) -> None:
+    # Resets cash to the default and clears all holdings.
+    init_db(db_path)
+    with _connect(db_path) as connection:
+        connection.execute("UPDATE cash SET balance = ? WHERE id = 1", (DEFAULT_INITIAL_CASH,))
+        connection.execute("DELETE FROM holdings")
+
+
 def record_trade(ticker: str, action: str, shares: float, price: float, db_path: Path = DB_PATH) -> dict:
     """Apply a buy or sell to cash and holdings, and return the updated portfolio."""
     ticker = ticker.upper()
