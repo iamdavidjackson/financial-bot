@@ -24,7 +24,6 @@ FEATURE_LOOKBACK_DAYS = 320
 _model = None
 _scalers = None
 
-
 def _signal_from_return(predicted_return: float, buy: float = 0.01, sell: float = -0.01) -> str:
     """Turn a predicted 5-day return into a buy / hold / sell label."""
     if predicted_return >= buy:
@@ -33,7 +32,6 @@ def _signal_from_return(predicted_return: float, buy: float = 0.01, sell: float 
         return "sell"
     return "hold"
 
-
 def _load_model():
     global _model
     if _model is None:
@@ -41,7 +39,6 @@ def _load_model():
 
         _model = keras.models.load_model(MODEL_PATH)
     return _model
-
 
 def _get_scalers():
     """Load the scalars used when training the model."""
@@ -55,7 +52,6 @@ def _get_scalers():
         _scalers = joblib.load(SCALERS_PATH)
 
     return _scalers
-
 
 def predict_stock_return(ticker: str) -> dict:
     """Predict a stock's return over the next 5 trading days using the pooled all-tickers LSTM model."""

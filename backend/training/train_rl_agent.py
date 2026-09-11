@@ -56,12 +56,6 @@ MODEL_PATH = MODEL_DIR / "ppo_portfolio_agent"
 
 TENSORBOARD_LOG_DIR = Path(__file__).resolve().parent.parent / "training_logs" / "ppo"
 
-POLICY_KWARGS = {
-    "activation_fn": nn.ReLU,
-    "net_arch": {"pi": [64, 64], "vf": [64, 64]},
-}
-
-
 class IterationLoggingCallback(BaseCallback):
     # Logs a timestamped line after each PPO rollout/update iteration.
     def __init__(self):
@@ -149,10 +143,15 @@ def train() -> pd.DataFrame:
 
     vec_env = make_vec_env(lambda: make_env(train_prices, train_signals), n_envs=1, seed=RANDOM_SEED)
 
+    policy_kwargs = {
+        "activation_fn": nn.ReLU,
+        "net_arch": {"pi": [64, 64], "vf": [64, 64]},
+    }
+
     model = PPO(
         policy="MlpPolicy",
         env=vec_env,
-        policy_kwargs=POLICY_KWARGS,
+        policy_kwargs=policy_kwargs,
         learning_rate=3e-4,
         n_steps=256,
         batch_size=64,

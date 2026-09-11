@@ -19,7 +19,6 @@ from langchain_core.tools import tool
 from langchain_ollama import ChatOllama
 from pydantic import BaseModel
 
-
 def seed_random_portfolio() -> None:
     # Resets the portfolio and seeds fresh random positions on every server start.
     reset_portfolio()
@@ -33,12 +32,10 @@ def seed_random_portfolio() -> None:
         except ValueError as exc:
             print(f"Could not seed a random {ticker} position: {exc}")
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     seed_random_portfolio()
     yield
-
 
 app = FastAPI(lifespan=lifespan)
 
@@ -54,13 +51,11 @@ llm = ChatOllama(model=os.getenv("OLLAMA_MODEL", "llama3.2:3b"))
 # Save widgets emitted during a chat request in a context variable so they can be returned in the response.
 _widgets: contextvars.ContextVar[list | None] = contextvars.ContextVar("widgets", default=None)
 
-
 def _emit_widget(widget_type: str, data: dict) -> None:
     """Attach a structured payload to the in-flight chat response, if one is collecting."""
     collected = _widgets.get()
     if collected is not None:
         collected.append({"type": widget_type, "data": data})
-
 
 @tool
 def get_stock_return_prediction(ticker: str) -> dict:

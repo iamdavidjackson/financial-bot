@@ -24,25 +24,37 @@ from core.lstm_helpers import (
 from core.tickers import TICKERS
 
 # Anchor the train/validation/test windows to today instead of fixed calendar
-# dates, so each run trains on the most recent data available. Window sizes match
-# what the notebook used: 2yr train, 1yr validation, 1yr test, ~3mo feature warmup.
+# dates. Use 2yr train, 1yr validation, and 1yr test, with 6mo feature warmup
+# before the training period.
 TODAY = pd.Timestamp.today().normalize()
 
 # The last test-period row still needs a completed 5-trading-day-ahead target, so
 # TEST_END has to sit far enough in the past for that target date to have data.
 TEST_END_BUFFER_DAYS = 10
 
-DOWNLOAD_END = (TODAY + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
-TEST_END = (TODAY - pd.Timedelta(days=TEST_END_BUFFER_DAYS)).strftime("%Y-%m-%d")
-TEST_START = (pd.Timestamp(TEST_END) - pd.DateOffset(years=1) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
-VALIDATION_END = (pd.Timestamp(TEST_START) - pd.Timedelta(days=1)).strftime("%Y-%m-%d")
-VALIDATION_START = (pd.Timestamp(VALIDATION_END) - pd.DateOffset(years=1) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
-TRAIN_MODEL_END = (pd.Timestamp(VALIDATION_START) - pd.Timedelta(days=1)).strftime("%Y-%m-%d")
-TRAIN_START = (pd.Timestamp(TRAIN_MODEL_END) - pd.DateOffset(years=2) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+# Work backward from the exclusive end of the test period.
+# Inline dates below are examples for a run on 2026-09-10 with a 10-day buffer.
+one_day = pd.Timedelta(days=1)
+test_end = TODAY - pd.Timedelta(days=TEST_END_BUFFER_DAYS)  # 2026-08-31
+test_stop = test_end + one_day  # 2026-09-01
+test_start = test_stop - pd.DateOffset(years=1)  # 2025-09-01
+validation_end = test_start - one_day  # 2025-08-31
+validation_start = test_start - pd.DateOffset(years=1)  # 2024-09-01
+train_end = validation_start - one_day  # 2024-08-31
+train_start = validation_start - pd.DateOffset(years=2)  # 2022-09-01
+
+# Format the boundaries once, using inclusive end dates for the dataset helper.
+DOWNLOAD_END = (TODAY + one_day).strftime("%Y-%m-%d")  # 2026-09-11
+TEST_END = test_end.strftime("%Y-%m-%d")  # 2026-08-31
+TEST_START = test_start.strftime("%Y-%m-%d")  # 2025-09-01
+VALIDATION_END = validation_end.strftime("%Y-%m-%d")  # 2025-08-31
+VALIDATION_START = validation_start.strftime("%Y-%m-%d")  # 2024-09-01
+TRAIN_MODEL_END = train_end.strftime("%Y-%m-%d")  # 2024-08-31
+TRAIN_START = train_start.strftime("%Y-%m-%d")  # 2022-09-01
 # Give moving averages like sma50, plus the 60-trading-day rolling z-score window
 # core.fetch_data.rolling_zscore needs on top of that, enough warm-up data before
 # the training window starts.
-FEATURE_START = (pd.Timestamp(TRAIN_START) - pd.DateOffset(months=6)).strftime("%Y-%m-%d")
+FEATURE_START = (train_start - pd.DateOffset(months=6)).strftime("%Y-%m-%d")  # 2022-03-01
 
 # Use a 30-day input window to predict the 5-trading-day return.
 FORECAST_HORIZON = 5

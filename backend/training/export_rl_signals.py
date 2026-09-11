@@ -1,3 +1,4 @@
+# 
 import sys
 from pathlib import Path
 
@@ -25,12 +26,10 @@ RL_DATA_DIR = Path(__file__).resolve().parent.parent / "training_data" / "rl"
 PRICE_PATH = RL_DATA_DIR / "prices.parquet"
 SIGNAL_PATH = RL_DATA_DIR / f"lstm_signals_{FORECAST_HORIZON}d.parquet"
 
-
 def load_signal_model():
     model = keras.models.load_model(MODEL_PATH)
     feature_scaler, target_scaler = joblib.load(SCALERS_PATH)
     return model, feature_scaler, target_scaler
-
 
 def export() -> pd.DataFrame:
     model, feature_scaler, target_scaler = load_signal_model()
@@ -39,12 +38,14 @@ def export() -> pd.DataFrame:
     closes = {}
 
     for ticker in PORTFOLIO_TICKERS:
+        # Get features for the ticker
         df = get_ticker_features(
             ticker=ticker,
             start=FEATURE_START,
             end=DOWNLOAD_END,
             smooth_outliers=True,
         )
+        # Ensure we have enough rows for predicting returns
         required_rows = WINDOW_SIZE + 1
         if df.empty or len(df) < required_rows:
             raise ValueError(f"{ticker}: only {len(df)} rows, need at least {required_rows}")
@@ -86,7 +87,6 @@ def export() -> pd.DataFrame:
             "mean_signal": [signals_df[t].mean() for t in PORTFOLIO_TICKERS],
         }
     )
-
 
 if __name__ == "__main__":
     print(export().to_string(index=False))
