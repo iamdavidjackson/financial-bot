@@ -1,6 +1,4 @@
 .ipynb_checkpoints
 tmp
-trained_models
 training_logs
-training_data
 __pycache__
