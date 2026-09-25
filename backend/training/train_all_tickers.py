@@ -12,8 +12,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import joblib
 import numpy as np
 import pandas as pd
-from tensorflow import keras
-
 from core.fetch_data import SELECTED_FEATURE_COLS, get_ticker_features
 from core.lstm_helpers import (
     build_lstm_model,
@@ -22,6 +20,7 @@ from core.lstm_helpers import (
     regression_metrics,
 )
 from core.tickers import TICKERS
+from tensorflow import keras
 
 # Anchor the train/validation/test windows to today instead of fixed calendar
 # dates. Use 2yr train, 1yr validation, and 1yr test, with 6mo feature warmup
@@ -54,7 +53,9 @@ TRAIN_START = train_start.strftime("%Y-%m-%d")  # 2022-09-01
 # Give moving averages like sma50, plus the 60-trading-day rolling z-score window
 # core.fetch_data.rolling_zscore needs on top of that, enough warm-up data before
 # the training window starts.
-FEATURE_START = (train_start - pd.DateOffset(months=6)).strftime("%Y-%m-%d")  # 2022-03-01
+FEATURE_START = (train_start - pd.DateOffset(months=6)).strftime(
+    "%Y-%m-%d"
+)  # 2022-03-01
 
 # Use a 30-day input window to predict the 5-trading-day return.
 FORECAST_HORIZON = 5
@@ -71,7 +72,11 @@ FEATURE_COLS = list(dict.fromkeys(SELECTED_FEATURE_COLS))
 ALL_TICKERS = list(dict.fromkeys(TICKERS))
 
 # Save the pooled model separately from the single-ticker and sector models.
-MODEL_DIR = Path(__file__).resolve().parent.parent / "trained_models" / "lstm_all_tickers_return_regression"
+MODEL_DIR = (
+    Path(__file__).resolve().parent.parent
+    / "trained_models"
+    / "lstm_all_tickers_return_regression"
+)
 MODEL_PATH = MODEL_DIR / f"all_tickers_{FORECAST_HORIZON}d_return.keras"
 SCALERS_PATH = MODEL_DIR / f"all_tickers_{FORECAST_HORIZON}d_return.scalers.joblib"
 
@@ -95,7 +100,9 @@ def load_ticker_features() -> dict[str, pd.DataFrame]:
             continue
 
         ticker_features[ticker] = df
-        print(f"{ticker}: {len(df)} rows ({df.index[0].date()} to {df.index[-1].date()})")
+        print(
+            f"{ticker}: {len(df)} rows ({df.index[0].date()} to {df.index[-1].date()})"
+        )
 
     print(f"Loaded {len(ticker_features)} of {len(ALL_TICKERS)} requested tickers.")
     return ticker_features
@@ -119,7 +126,9 @@ def train() -> pd.DataFrame:
         forecast_horizon=FORECAST_HORIZON,
     )
     if dataset is None:
-        raise ValueError("No valid pooled dataset could be built from the available tickers.")
+        raise ValueError(
+            "No valid pooled dataset could be built from the available tickers."
+        )
 
     print(f"Training samples: {len(dataset['train']['y'])}")
     print(f"Validation samples: {len(dataset['validation']['y'])}")
@@ -165,7 +174,9 @@ def train() -> pd.DataFrame:
     naive_pred = np.zeros_like(y_test)
 
     model_metrics = regression_metrics(y_pred, current_close_test, target_close_test)
-    naive_metrics = regression_metrics(naive_pred, current_close_test, target_close_test)
+    naive_metrics = regression_metrics(
+        naive_pred, current_close_test, target_close_test
+    )
 
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
     model.save(MODEL_PATH)

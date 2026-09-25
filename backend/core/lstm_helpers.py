@@ -11,6 +11,7 @@ from sklearn.metrics import (
 )
 from sklearn.preprocessing import MinMaxScaler
 
+
 def make_split_parts() -> dict[str, list[Any]]:
     """Create the temporary lists used while building LSTM samples."""
     return {
@@ -22,6 +23,7 @@ def make_split_parts() -> dict[str, list[Any]]:
         "prediction_date": [],
         "target_date": [],
     }
+
 
 def append_window(
     split_parts: dict[str, list[Any]],
@@ -48,6 +50,7 @@ def append_window(
     split_parts["ticker"].append(ticker)
     split_parts["prediction_date"].append(dates[end_position])
     split_parts["target_date"].append(dates[target_position])
+
 
 def finalise_split(
     split_parts: dict[str, list[Any]],
@@ -82,6 +85,7 @@ def finalise_split(
         "metadata": metadata,
     }
 
+
 def add_scaled_targets(
     split: dict[str, Any],
     target_scaler: MinMaxScaler,
@@ -97,6 +101,7 @@ def add_scaled_targets(
         )
 
     return split
+
 
 def build_sector_data(
     sector_tickers: Sequence[str],
@@ -120,15 +125,21 @@ def build_sector_data(
     test_start = pd.Timestamp(test_start)
     test_end = pd.Timestamp(test_end)
 
-    available_tickers = [ticker for ticker in sector_tickers if ticker in ticker_features]
+    available_tickers = [
+        ticker for ticker in sector_tickers if ticker in ticker_features
+    ]
 
     training_feature_rows = []
     for ticker in available_tickers:
-        rows = ticker_features[ticker].loc[
-            (ticker_features[ticker].index >= train_start)
-            & (ticker_features[ticker].index <= train_model_end),
-            feature_cols,
-        ].dropna()
+        rows = (
+            ticker_features[ticker]
+            .loc[
+                (ticker_features[ticker].index >= train_start)
+                & (ticker_features[ticker].index <= train_model_end),
+                feature_cols,
+            ]
+            .dropna()
+        )
 
         if not rows.empty:
             training_feature_rows.append(rows)
@@ -213,6 +224,7 @@ def build_sector_data(
         "test": test,
     }
 
+
 def build_lstm_model(
     input_shape: tuple[int, int],
     first_lstm_units: int = 128,
@@ -253,9 +265,7 @@ def inverse_scale_predictions(
     scaled_predictions: np.ndarray,
 ) -> np.ndarray:
     """Convert scaled return predictions back to normal return values."""
-    return target_scaler.inverse_transform(
-        scaled_predictions.reshape(-1, 1)
-    ).flatten()
+    return target_scaler.inverse_transform(scaled_predictions.reshape(-1, 1)).flatten()
 
 
 def regression_metrics(
@@ -272,9 +282,11 @@ def regression_metrics(
         "mape": mean_absolute_percentage_error(target_close, predicted_close),
     }
 
+
 def sector_slug(sector: str) -> str:
     """Convert a sector name into a readable filename slug."""
     return re.sub(r"[^a-z0-9]+", "_", sector.lower()).strip("_")
+
 
 def predict_return_series(
     model: Any,
@@ -294,10 +306,15 @@ def predict_return_series(
         [scaled[end - window_size + 1 : end + 1] for end in end_positions]
     ).astype(np.float32)
 
-    scaled_predictions = model.predict(windows, batch_size=batch_size, verbose=0).flatten()
+    scaled_predictions = model.predict(
+        windows, batch_size=batch_size, verbose=0
+    ).flatten()
     predicted_returns = inverse_scale_predictions(target_scaler, scaled_predictions)
 
-    return pd.Series(predicted_returns, index=dates[window_size - 1 :], name="predicted_return")
+    return pd.Series(
+        predicted_returns, index=dates[window_size - 1 :], name="predicted_return"
+    )
+
 
 def convert_returns_to_signals(predicted_returns: pd.DataFrame) -> pd.DataFrame:
     # Rank each date's tickers against each other, so the signal stays between 0 and 1.

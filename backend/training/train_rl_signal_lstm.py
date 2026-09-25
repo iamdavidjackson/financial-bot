@@ -7,8 +7,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import joblib
 import numpy as np
 import pandas as pd
-from tensorflow import keras
-
 from core.fetch_data import SELECTED_FEATURE_COLS, get_ticker_features
 from core.lstm_helpers import (
     build_lstm_model,
@@ -17,6 +15,7 @@ from core.lstm_helpers import (
     regression_metrics,
 )
 from core.tickers import TICKERS
+from tensorflow import keras
 
 # Add timestamps for logging
 logging.basicConfig(
@@ -50,7 +49,9 @@ FEATURE_COLS = list(dict.fromkeys(SELECTED_FEATURE_COLS))
 ALL_TICKERS = list(dict.fromkeys(TICKERS))
 
 # Model Paths
-MODEL_DIR = Path(__file__).resolve().parent.parent / "trained_models" / "lstm_rl_signal_source"
+MODEL_DIR = (
+    Path(__file__).resolve().parent.parent / "trained_models" / "lstm_rl_signal_source"
+)
 MODEL_PATH = MODEL_DIR / f"rl_signal_source_{FORECAST_HORIZON}d_return.keras"
 SCALERS_PATH = MODEL_DIR / f"rl_signal_source_{FORECAST_HORIZON}d_return.scalers.joblib"
 
@@ -69,7 +70,13 @@ def load_ticker_features() -> dict[str, pd.DataFrame]:
         )
 
         if df.empty or len(df) < required_rows:
-            logger.info("[%d/%d] %s: skipped (only %d rows)", ticker_index, len(ALL_TICKERS), ticker, len(df))
+            logger.info(
+                "[%d/%d] %s: skipped (only %d rows)",
+                ticker_index,
+                len(ALL_TICKERS),
+                ticker,
+                len(df),
+            )
             continue
 
         ticker_features[ticker] = df
@@ -83,7 +90,9 @@ def load_ticker_features() -> dict[str, pd.DataFrame]:
             df.index[-1].date(),
         )
 
-    logger.info("Loaded %d of %d requested tickers.", len(ticker_features), len(ALL_TICKERS))
+    logger.info(
+        "Loaded %d of %d requested tickers.", len(ticker_features), len(ALL_TICKERS)
+    )
     return ticker_features
 
 
@@ -101,7 +110,9 @@ class EpochLoggingCallback(keras.callbacks.Callback):
 
 
 def train() -> pd.DataFrame:
-    logger.info("Starting LSTM signal-source training run (tickers=%d)", len(ALL_TICKERS))
+    logger.info(
+        "Starting LSTM signal-source training run (tickers=%d)", len(ALL_TICKERS)
+    )
 
     ticker_features = load_ticker_features()
 
@@ -119,7 +130,9 @@ def train() -> pd.DataFrame:
         forecast_horizon=FORECAST_HORIZON,
     )
     if dataset is None:
-        raise ValueError("No valid pooled dataset could be built from the available tickers.")
+        raise ValueError(
+            "No valid pooled dataset could be built from the available tickers."
+        )
 
     logger.info("Training samples: %d", len(dataset["train"]["y"]))
     logger.info("Validation samples: %d", len(dataset["validation"]["y"]))
@@ -162,7 +175,9 @@ def train() -> pd.DataFrame:
     naive_pred = np.zeros_like(y_test)
 
     model_metrics = regression_metrics(y_pred, current_close_test, target_close_test)
-    naive_metrics = regression_metrics(naive_pred, current_close_test, target_close_test)
+    naive_metrics = regression_metrics(
+        naive_pred, current_close_test, target_close_test
+    )
 
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
     model.save(MODEL_PATH)

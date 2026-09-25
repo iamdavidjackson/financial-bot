@@ -68,7 +68,9 @@ class PortfolioEnv(Env):
         self.reward_scale = float(reward_scale)
 
         # One Hold/Buy/Sell choice per asset each step.
-        self.action_space = spaces.MultiDiscrete(np.full(self.n_assets, 3, dtype=np.int64))
+        self.action_space = spaces.MultiDiscrete(
+            np.full(self.n_assets, 3, dtype=np.int64)
+        )
         # Matches the observation _get_observation builds: signals, position
         # ratios, normalised prices, cash ratio, value ratio.
         self.observation_space = spaces.Box(
@@ -84,7 +86,9 @@ class PortfolioEnv(Env):
     def _get_observation(self) -> np.ndarray:
         current_prices = self.prices[self.current_step]
         # Floor the denominator so a near-zero portfolio can't divide by zero.
-        portfolio_value = max(self._portfolio_value(current_prices), self._MIN_PORTFOLIO_VALUE)
+        portfolio_value = max(
+            self._portfolio_value(current_prices), self._MIN_PORTFOLIO_VALUE
+        )
         position_ratios = self.holdings * current_prices / portfolio_value
         normalised_prices = current_prices / self.episode_start_prices
         cash_ratio = np.array([self.cash / portfolio_value], dtype=np.float32)
@@ -119,14 +123,18 @@ class PortfolioEnv(Env):
         ]
         return self._get_observation(), {}
 
-    def _execute_trades(self, action: np.ndarray, current_prices: np.ndarray, portfolio_value: float) -> float:
+    def _execute_trades(
+        self, action: np.ndarray, current_prices: np.ndarray, portfolio_value: float
+    ) -> float:
         # process the Sell actions before Buy actions. This raises cash first, so a Buy on
         # the same step can draw on proceeds from a Sell on the same step.
         transaction_costs = 0.0
 
         for asset_index in np.flatnonzero(action == self.SELL):
             # Sell up to trade_fraction of the position, rounded up, capped at what's held.
-            shares_to_sell = int(np.ceil(self.holdings[asset_index] * self.trade_fraction))
+            shares_to_sell = int(
+                np.ceil(self.holdings[asset_index] * self.trade_fraction)
+            )
             shares_to_sell = min(shares_to_sell, int(self.holdings[asset_index]))
             if shares_to_sell <= 0:
                 continue
@@ -204,7 +212,9 @@ class PortfolioEnv(Env):
         )
 
 
-def make_buy_and_hold_curve(prices: pd.DataFrame, initial_cash: float, transaction_cost: float) -> pd.Series:
+def make_buy_and_hold_curve(
+    prices: pd.DataFrame, initial_cash: float, transaction_cost: float
+) -> pd.Series:
     # I buy an equal dollar amount of each ticker on day 1 and hold to the end.
     # This is the baseline I compare PPO against.
     first_prices = prices.iloc[0].to_numpy()
@@ -224,7 +234,9 @@ def portfolio_metrics(values: pd.Series) -> dict:
     annualised_return = (1 + total_return) ** (252 / max(len(returns), 1)) - 1
     annualised_volatility = returns.std() * np.sqrt(252)
     # Sharpe ratio is the mean return divided by the standard deviation of returns, annualised.
-    sharpe_ratio = returns.mean() / returns.std() * np.sqrt(252) if returns.std() > 0 else np.nan
+    sharpe_ratio = (
+        returns.mean() / returns.std() * np.sqrt(252) if returns.std() > 0 else np.nan
+    )
     drawdown = values / values.cummax() - 1
 
     return {

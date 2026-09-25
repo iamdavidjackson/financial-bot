@@ -23,9 +23,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pandas as pd
-from stable_baselines3 import PPO
-
 from core.portfolio_env import make_buy_and_hold_curve, portfolio_metrics
+from stable_baselines3 import PPO
 from training.train_rl_agent import (
     INITIAL_CASH,
     MODEL_PATH,
@@ -110,11 +109,18 @@ def results_to_markdown(df):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument(
-        "--seeds", type=int, default=DEFAULT_SEED_COUNT, help="number of random-policy seeds, run as 0..N-1"
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--out", type=Path, default=DEFAULT_OUT_DIR, help="output directory")
+    parser.add_argument(
+        "--seeds",
+        type=int,
+        default=DEFAULT_SEED_COUNT,
+        help="number of random-policy seeds, run as 0..N-1",
+    )
+    parser.add_argument(
+        "--out", type=Path, default=DEFAULT_OUT_DIR, help="output directory"
+    )
     args = parser.parse_args()
 
     if args.seeds < 1:
@@ -122,7 +128,9 @@ def main():
 
     model_file = Path(f"{MODEL_PATH}.zip")
     if not model_file.exists():
-        raise SystemExit(f"Saved PPO model not found at {model_file}. Run train_rl_agent.py first.")
+        raise SystemExit(
+            f"Saved PPO model not found at {model_file}. Run train_rl_agent.py first."
+        )
 
     out_dir = args.out
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -136,14 +144,20 @@ def main():
     print(f"Loaded saved PPO model from {model_file}")
 
     # PPO deterministic evaluation on the held-out set.
-    ppo_curve = evaluate_policy(model, make_env(test_prices, test_signals))["portfolio_value"]
+    ppo_curve = evaluate_policy(model, make_env(test_prices, test_signals))[
+        "portfolio_value"
+    ]
 
     # Random-policy baseline across many seeds.
     seeds = list(range(args.seeds))
-    print(f"Running random-policy baseline for {len(seeds)} seeds ({seeds[0]}..{seeds[-1]})")
+    print(
+        f"Running random-policy baseline for {len(seeds)} seeds ({seeds[0]}..{seeds[-1]})"
+    )
     random_curves, random_metrics = run_random_seeds(test_prices, test_signals, seeds)
 
-    buy_and_hold_curve = make_buy_and_hold_curve(test_prices, INITIAL_CASH, TRANSACTION_COST)
+    buy_and_hold_curve = make_buy_and_hold_curve(
+        test_prices, INITIAL_CASH, TRANSACTION_COST
+    )
     cash_curve = pd.Series(INITIAL_CASH, index=test_prices.index)
 
     # ---- chart data ----
@@ -159,7 +173,9 @@ def main():
     ).dropna()
     chart.index.name = "date"
     chart.round(2).to_csv(out_dir / "portfolio_values.csv")
-    random_curves.round(2).to_csv(out_dir / "random_policy_portfolio_values_by_seed.csv")
+    random_curves.round(2).to_csv(
+        out_dir / "random_policy_portfolio_values_by_seed.csv"
+    )
 
     # ---- results table ----
     best_seed = random_metrics["final_value"].idxmax()
@@ -169,8 +185,12 @@ def main():
         "Buy and hold": portfolio_metrics(chart["Buy and hold"]),
         "Random policy (mean of seeds)": random_metrics.mean().to_dict(),
         "Random policy (std of seeds)": random_metrics.std().to_dict(),
-        f"Random policy (best seed = {best_seed})": random_metrics.loc[best_seed].to_dict(),
-        f"Random policy (worst seed = {worst_seed})": random_metrics.loc[worst_seed].to_dict(),
+        f"Random policy (best seed = {best_seed})": random_metrics.loc[
+            best_seed
+        ].to_dict(),
+        f"Random policy (worst seed = {worst_seed})": random_metrics.loc[
+            worst_seed
+        ].to_dict(),
         "Cash": portfolio_metrics(chart["Cash"]),
     }
     results_df = pd.DataFrame(summary_rows).T[METRIC_COLS]
@@ -183,13 +203,18 @@ def main():
     # ---- experiment notes ----
     ppo_final = results_df.loc["PPO", "final_value"]
     bh_final = results_df.loc["Buy and hold", "final_value"]
-    ppo_vs_bh_pp = (results_df.loc["PPO", "total_return"] - results_df.loc["Buy and hold", "total_return"]) * 100
-    ppo_vs_rand_pp = (results_df.loc["PPO", "total_return"] - random_metrics["total_return"].mean()) * 100
+    ppo_vs_bh_pp = (
+        results_df.loc["PPO", "total_return"]
+        - results_df.loc["Buy and hold", "total_return"]
+    ) * 100
+    ppo_vs_rand_pp = (
+        results_df.loc["PPO", "total_return"] - random_metrics["total_return"].mean()
+    ) * 100
     n_beat_bh = int((random_metrics["final_value"] > bh_final).sum())
     n_beat_ppo = int((random_metrics["final_value"] > ppo_final).sum())
-    model_mtime = datetime.fromtimestamp(model_file.stat().st_mtime, tz=timezone.utc).strftime(
-        "%Y-%m-%d %H:%M UTC"
-    )
+    model_mtime = datetime.fromtimestamp(
+        model_file.stat().st_mtime, tz=timezone.utc
+    ).strftime("%Y-%m-%d %H:%M UTC")
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
     notes = f"""# PPO evaluation - experiment notes
@@ -237,10 +262,10 @@ later test end date is required.
 
 | Statistic | Final value | Total return |
 |---|---:|---:|
-| Mean | ${random_metrics['final_value'].mean():,.2f} | {random_metrics['total_return'].mean():.2%} |
-| Std | ${random_metrics['final_value'].std():,.2f} | {random_metrics['total_return'].std():.2%} |
-| Min | ${random_metrics['final_value'].min():,.2f} | {random_metrics['total_return'].min():.2%} |
-| Max | ${random_metrics['final_value'].max():,.2f} | {random_metrics['total_return'].max():.2%} |
+| Mean | ${random_metrics["final_value"].mean():,.2f} | {random_metrics["total_return"].mean():.2%} |
+| Std | ${random_metrics["final_value"].std():,.2f} | {random_metrics["total_return"].std():.2%} |
+| Min | ${random_metrics["final_value"].min():,.2f} | {random_metrics["total_return"].min():.2%} |
+| Max | ${random_metrics["final_value"].max():,.2f} | {random_metrics["total_return"].max():.2%} |
 
 ## Observations
 

@@ -1,8 +1,6 @@
 import numpy as np
 import pandas as pd
 import pytest
-from sklearn.preprocessing import MinMaxScaler
-
 from core.lstm_helpers import (
     add_scaled_targets,
     append_window,
@@ -13,14 +11,21 @@ from core.lstm_helpers import (
     regression_metrics,
     sector_slug,
 )
+from sklearn.preprocessing import MinMaxScaler
 
 
 def test_sector_slug_lowercases_and_joins_with_underscores():
-    assert sector_slug("Technology and Communication Services") == "technology_and_communication_services"
+    assert (
+        sector_slug("Technology and Communication Services")
+        == "technology_and_communication_services"
+    )
 
 
 def test_sector_slug_strips_punctuation():
-    assert sector_slug("Consumer Staples & Discretionary!") == "consumer_staples_discretionary"
+    assert (
+        sector_slug("Consumer Staples & Discretionary!")
+        == "consumer_staples_discretionary"
+    )
 
 
 def test_inverse_scale_predictions_reverses_min_max_scaling():
@@ -106,14 +111,36 @@ def test_finalise_split_builds_arrays_with_correct_shapes():
     scaled = np.arange(12, dtype=float).reshape(6, 2)
 
     parts = make_split_parts()
-    append_window(parts, scaled, closes, dates, "TEST", end_position=2, window_size=2, forecast_horizon=1)
-    append_window(parts, scaled, closes, dates, "TEST", end_position=3, window_size=2, forecast_horizon=1)
+    append_window(
+        parts,
+        scaled,
+        closes,
+        dates,
+        "TEST",
+        end_position=2,
+        window_size=2,
+        forecast_horizon=1,
+    )
+    append_window(
+        parts,
+        scaled,
+        closes,
+        dates,
+        "TEST",
+        end_position=3,
+        window_size=2,
+        forecast_horizon=1,
+    )
 
     split = finalise_split(parts, window_size=2, feature_cols=["a", "b"])
 
     assert split["X"].shape == (2, 2, 2)
     assert split["y"].shape == (2,)
-    assert list(split["metadata"].columns) == ["ticker", "prediction_date", "target_date"]
+    assert list(split["metadata"].columns) == [
+        "ticker",
+        "prediction_date",
+        "target_date",
+    ]
 
 
 def test_finalise_split_handles_empty_input():
@@ -149,7 +176,9 @@ def test_add_scaled_targets_handles_empty_split():
     assert result["y_scaled"].shape == (0,)
 
 
-def _make_ticker_df(start: str, periods: int, base_price: float = 100.0) -> pd.DataFrame:
+def _make_ticker_df(
+    start: str, periods: int, base_price: float = 100.0
+) -> pd.DataFrame:
     dates = pd.date_range(start, periods=periods, freq="B")
     prices = base_price + np.arange(periods, dtype=float)
     return pd.DataFrame({"feature_a": prices, "Close": prices}, index=dates)
@@ -176,7 +205,9 @@ def test_build_sector_data_splits_by_date_ranges():
     assert len(dataset["train"]["y"]) > 0
     assert len(dataset["validation"]["y"]) > 0
     assert len(dataset["test"]["y"]) > 0
-    assert dataset["train"]["metadata"]["prediction_date"].max() <= pd.Timestamp("2022-06-01")
+    assert dataset["train"]["metadata"]["prediction_date"].max() <= pd.Timestamp(
+        "2022-06-01"
+    )
 
 
 def test_build_sector_data_returns_none_when_no_tickers_available():

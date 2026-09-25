@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import pytest
-
 from core.fetch_data import (
     OHLCV_COLS,
     SELECTED_FEATURE_COLS,

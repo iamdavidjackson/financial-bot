@@ -2,8 +2,8 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 from ta.trend import IchimokuIndicator
-from ta.volume import OnBalanceVolumeIndicator, VolumePriceTrendIndicator
 from ta.volatility import BollingerBands
+from ta.volume import OnBalanceVolumeIndicator, VolumePriceTrendIndicator
 
 # Trading days in the rolling window used to normalize each level column.
 ZSCORE_WINDOW = 60
@@ -138,7 +138,9 @@ def weighted_moving_average(
     weights = np.asarray(weights, dtype=float)
     weights = weights / weights.sum()
 
-    return series.rolling(window).apply(lambda values: np.dot(values, weights), raw=True)
+    return series.rolling(window).apply(
+        lambda values: np.dot(values, weights), raw=True
+    )
 
 
 def triple_exponential_moving_average(series: pd.Series, window: int) -> pd.Series:
@@ -157,7 +159,9 @@ def fibonacci_weighted_moving_average(series: pd.Series, window: int) -> pd.Seri
     while len(fibonacci_weights) < window:
         fibonacci_weights.append(fibonacci_weights[-1] + fibonacci_weights[-2])
 
-    return weighted_moving_average(series, window, np.array(fibonacci_weights[-window:]))
+    return weighted_moving_average(
+        series, window, np.array(fibonacci_weights[-window:])
+    )
 
 
 def hull_moving_average(series: pd.Series, window: int) -> pd.Series:
@@ -200,7 +204,9 @@ def holt_winter_moving_average(
 
 
 # Normalize features using rolling z-scores
-def rolling_zscore(features: pd.DataFrame, cols: list[str], window: int) -> pd.DataFrame:
+def rolling_zscore(
+    features: pd.DataFrame, cols: list[str], window: int
+) -> pd.DataFrame:
     """Calculate rolling z-scores for specified columns in a DataFrame."""
     normalized = features.copy()
 
@@ -245,9 +251,7 @@ def compute_technical_features(data: pd.DataFrame) -> pd.DataFrame:
         window2=26,
         window3=52,
     )
-    features["ichimoku"] = (
-        ichimoku.ichimoku_a() + ichimoku.ichimoku_b()
-    ) / 2
+    features["ichimoku"] = (ichimoku.ichimoku_a() + ichimoku.ichimoku_b()) / 2
 
     features = rolling_zscore(features, LEVEL_COLS, window=ZSCORE_WINDOW)
 

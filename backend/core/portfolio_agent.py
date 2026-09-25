@@ -26,10 +26,17 @@ REWARD_SCALE = INITIAL_CASH
 WINDOW_SIZE = 30
 
 # Model paths
-SIGNAL_MODEL_DIR = Path(__file__).resolve().parent.parent / "trained_models" / "lstm_rl_signal_source"
+SIGNAL_MODEL_DIR = (
+    Path(__file__).resolve().parent.parent / "trained_models" / "lstm_rl_signal_source"
+)
 SIGNAL_MODEL_PATH = SIGNAL_MODEL_DIR / "rl_signal_source_5d_return.keras"
 SIGNAL_SCALERS_PATH = SIGNAL_MODEL_DIR / "rl_signal_source_5d_return.scalers.joblib"
-PPO_MODEL_PATH = Path(__file__).resolve().parent.parent / "trained_models" / "ppo_portfolio_agent" / "ppo_portfolio_agent"
+PPO_MODEL_PATH = (
+    Path(__file__).resolve().parent.parent
+    / "trained_models"
+    / "ppo_portfolio_agent"
+    / "ppo_portfolio_agent"
+)
 
 FEATURE_COLS = list(dict.fromkeys(SELECTED_FEATURE_COLS))
 RECENT_TRADING_DAYS = 10
@@ -39,7 +46,11 @@ _ppo_model = None
 _signal_model = None
 _signal_scalers = None
 
-ACTION_LABELS = {PortfolioEnv.HOLD: "hold", PortfolioEnv.BUY: "buy", PortfolioEnv.SELL: "sell"}
+ACTION_LABELS = {
+    PortfolioEnv.HOLD: "hold",
+    PortfolioEnv.BUY: "buy",
+    PortfolioEnv.SELL: "sell",
+}
 
 
 def _load_ppo_model():
@@ -83,9 +94,13 @@ def _load_recent_prices_and_signals() -> tuple[pd.DataFrame, pd.DataFrame]:
     closes = {}
 
     for ticker in PORTFOLIO_TICKERS:
-        df = get_ticker_features(ticker=ticker, start=start, end=end, smooth_outliers=True)
+        df = get_ticker_features(
+            ticker=ticker, start=start, end=end, smooth_outliers=True
+        )
         if df.empty or len(df) < WINDOW_SIZE + 1:
-            raise RuntimeError(f"{ticker}: need at least {WINDOW_SIZE + 1} rows but only got {len(df)}")
+            raise RuntimeError(
+                f"{ticker}: need at least {WINDOW_SIZE + 1} rows but only got {len(df)}"
+            )
 
         predicted_returns[ticker] = predict_return_series(
             signal_model, feature_scaler, target_scaler, df, FEATURE_COLS, WINDOW_SIZE
@@ -100,7 +115,9 @@ def _load_recent_prices_and_signals() -> tuple[pd.DataFrame, pd.DataFrame]:
     common_dates = common_dates[-RECENT_TRADING_DAYS:]
 
     prices_df = prices_df.loc[common_dates, PORTFOLIO_TICKERS].astype("float32")
-    signals_df = convert_returns_to_signals(predicted_returns_df.loc[common_dates, PORTFOLIO_TICKERS])
+    signals_df = convert_returns_to_signals(
+        predicted_returns_df.loc[common_dates, PORTFOLIO_TICKERS]
+    )
 
     return prices_df, signals_df
 
@@ -167,13 +184,15 @@ def recommend_trades() -> dict:
     # get cash and holding from portfolio
     portfolio = get_portfolio()
     env.cash = float(portfolio["cash"])
-    env.holdings = pd.Series(portfolio["holdings"]).reindex(PORTFOLIO_TICKERS, fill_value=0.0).to_numpy(
-        dtype="float32"
+    env.holdings = (
+        pd.Series(portfolio["holdings"])
+        .reindex(PORTFOLIO_TICKERS, fill_value=0.0)
+        .to_numpy(dtype="float32")
     )
     # select todays prices
     env.current_step = len(env.prices) - 1
 
-    # make an observation and ask the PPO model what to do with each ticker 
+    # make an observation and ask the PPO model what to do with each ticker
     observation = env._get_observation()
     action, _states = ppo_model.predict(observation, deterministic=True)
 

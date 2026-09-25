@@ -8,7 +8,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.fetch_data import get_latest_close
-from core.portfolio_agent import PORTFOLIO_TICKER_NAMES, PORTFOLIO_TICKERS, recommend_trades
+from core.portfolio_agent import (
+    PORTFOLIO_TICKER_NAMES,
+    PORTFOLIO_TICKERS,
+    recommend_trades,
+)
 from core.portfolio_store import get_portfolio, record_trade, reset_portfolio
 from core.predict import predict_stock_return
 from core.tickers import TICKERS
@@ -19,23 +23,30 @@ from langchain_core.tools import tool
 from langchain_ollama import ChatOllama
 from pydantic import BaseModel
 
+
 def seed_random_portfolio() -> None:
     # Resets the portfolio and seeds fresh random positions on every server start.
     reset_portfolio()
 
-    tickers = random.sample(PORTFOLIO_TICKERS, k=random.randint(1, len(PORTFOLIO_TICKERS)))
+    tickers = random.sample(
+        PORTFOLIO_TICKERS, k=random.randint(1, len(PORTFOLIO_TICKERS))
+    )
 
     for ticker in tickers:
         try:
             price = get_latest_close(ticker)
-            record_trade(ticker, "buy", shares=float(random.randint(5, 50)), price=price)
+            record_trade(
+                ticker, "buy", shares=float(random.randint(5, 50)), price=price
+            )
         except ValueError as exc:
             print(f"Could not seed a random {ticker} position: {exc}")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     seed_random_portfolio()
     yield
+
 
 app = FastAPI(lifespan=lifespan)
 
@@ -49,13 +60,17 @@ app.add_middleware(
 llm = ChatOllama(model=os.getenv("OLLAMA_MODEL", "llama3.2:3b"))
 
 # Save widgets emitted during a chat request in a context variable so they can be returned in the response.
-_widgets: contextvars.ContextVar[list | None] = contextvars.ContextVar("widgets", default=None)
+_widgets: contextvars.ContextVar[list | None] = contextvars.ContextVar(
+    "widgets", default=None
+)
+
 
 def _emit_widget(widget_type: str, data: dict) -> None:
     """Attach a structured payload to the in-flight chat response, if one is collecting."""
     collected = _widgets.get()
     if collected is not None:
         collected.append({"type": widget_type, "data": data})
+
 
 @tool
 def get_stock_return_prediction(ticker: str) -> dict:
@@ -101,7 +116,13 @@ def record_portfolio_trade(ticker: str, action: str, shares: float) -> dict:
         return {"error": str(exc)}
     _emit_widget(
         "trade_confirmation",
-        {"ticker": ticker, "action": action.lower(), "shares": shares, "price": price, **result},
+        {
+            "ticker": ticker,
+            "action": action.lower(),
+            "shares": shares,
+            "price": price,
+            **result,
+        },
     )
     return result
 
@@ -171,7 +192,9 @@ def chat(request: ChatRequest) -> ChatResponse:
     collected: list[dict] = []
     token = _widgets.set(collected)
     try:
-        result = agent.invoke({"messages": [{"role": "user", "content": request.message}]})
+        result = agent.invoke(
+            {"messages": [{"role": "user", "content": request.message}]}
+        )
     finally:
         _widgets.reset(token)
     return ChatResponse(reply=result["messages"][-1].content, widgets=collected)
