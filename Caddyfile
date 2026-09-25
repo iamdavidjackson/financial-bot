@@ -1,0 +1,17 @@
+{$DOMAIN} {
+	encode gzip
+
+	# The frontend calls /api/chat; strip the prefix so FastAPI sees /chat.
+	handle_path /api/* {
+		reverse_proxy api:8000 {
+			# LLM responses can be slow on a CPU-only server.
+			transport http {
+				read_timeout 5m
+			}
+		}
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
+}
