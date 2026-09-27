@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.fetch_data import get_latest_close
+from core.fetch_data import get_latest_close, get_recent_closes
 from core.portfolio_agent import (
     PORTFOLIO_TICKER_NAMES,
     PORTFOLIO_TICKERS,
@@ -171,6 +171,34 @@ def hello_world() -> dict[str, str]:
 @app.get("/portfolio")
 def portfolio() -> dict:
     return get_portfolio()
+
+
+DEFAULT_QUOTE_TICKERS = PORTFOLIO_TICKERS[:3]
+
+
+@app.get("/quotes")
+def quotes(tickers: str | None = None) -> list[dict]:
+    symbols = (
+        [t.strip().upper() for t in tickers.split(",") if t.strip()]
+        if tickers
+        else DEFAULT_QUOTE_TICKERS
+    )
+
+    results = []
+    for ticker in symbols:
+        price, previous_close = get_recent_closes(ticker)
+        change = price - previous_close
+        results.append(
+            {
+                "ticker": ticker,
+                "name": PORTFOLIO_TICKER_NAMES.get(ticker, ticker),
+                "price": price,
+                "previous_close": previous_close,
+                "change": change,
+                "change_percent": change / previous_close * 100,
+            }
+        )
+    return results
 
 
 class ChatRequest(BaseModel):

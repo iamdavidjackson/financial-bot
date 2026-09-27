@@ -36,15 +36,24 @@ LEVEL_COLS = [
 SELECTED_FEATURE_COLS = [f"{col}_z" for col in LEVEL_COLS]
 
 
+def _recent_close_prices(ticker: str) -> pd.Series:
+    data = yf.Ticker(ticker).history(period="5d", auto_adjust=True)
+    return data["Close"].dropna() if "Close" in data else pd.Series(dtype=float)
+
+
 def get_latest_close(ticker: str) -> float:
     """Fetch a ticker's most recent closing price, for pricing a trade someone reports today."""
-    data = yf.Ticker(ticker).history(period="5d", auto_adjust=True)
-
-    close_prices = data["Close"].dropna() if "Close" in data else pd.Series(dtype=float)
+    close_prices = _recent_close_prices(ticker)
     if close_prices.empty:
         raise ValueError(f"No recent price data for {ticker}")
 
     return float(close_prices.iloc[-1])
+
+
+def get_recent_closes(ticker: str) -> tuple[float, float]:
+    close_prices = _recent_close_prices(ticker)
+    
+    return float(close_prices.iloc[-1]), float(close_prices.iloc[-2])
 
 
 def download_ticker(ticker: str, start: str, end: str) -> pd.DataFrame:
