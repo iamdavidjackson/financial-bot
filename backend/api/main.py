@@ -1,7 +1,10 @@
 import contextvars
+import json
 import os
 import random
+import re
 import sys
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -19,20 +22,17 @@ from core.tickers import TICKERS
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from langchain.agents import create_agent
+from langchain_core.messages import AIMessage, ToolMessage
 from langchain_core.tools import tool
 from langchain_ollama import ChatOllama
 from pydantic import BaseModel
 
 
 def seed_random_portfolio() -> None:
-    # Resets the portfolio and seeds fresh random positions on every server start.
+    # Resets the portfolio and seeds a random-sized position in every tracked ticker on each server start.
     reset_portfolio()
 
-    tickers = random.sample(
-        PORTFOLIO_TICKERS, k=random.randint(1, len(PORTFOLIO_TICKERS))
-    )
-
-    for ticker in tickers:
+    for ticker in PORTFOLIO_TICKERS:
         try:
             price = get_latest_close(ticker)
             record_trade(
@@ -57,7 +57,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-llm = ChatOllama(model=os.getenv("OLLAMA_MODEL", "llama3.2:3b"))
+# Temperature 0 makes small models less likely to write a tool call as plain text.
+llm = ChatOllama(model=os.getenv("OLLAMA_MODEL", "llama3.2:3b"), temperature=0)
 
 # Save widgets emitted during a chat request in a context variable so they can be returned in the response.
 _widgets: contextvars.ContextVar[list | None] = contextvars.ContextVar(
@@ -127,14 +128,17 @@ def record_portfolio_trade(ticker: str, action: str, shares: float) -> dict:
     return result
 
 
+TOOLS = [
+    get_stock_return_prediction,
+    get_portfolio_positions,
+    get_portfolio_trade_recommendation,
+    record_portfolio_trade,
+]
+TOOLS_BY_NAME = {t.name: t for t in TOOLS}
+
 agent = create_agent(
     llm,
-    tools=[
-        get_stock_return_prediction,
-        get_portfolio_positions,
-        get_portfolio_trade_recommendation,
-        record_portfolio_trade,
-    ],
+    tools=TOOLS,
     system_prompt=(
         "You are a helpful financial advisor assistant. When asked about a stock's near-term "
         "outlook, use the get_stock_return_prediction tool rather than guessing, then "
@@ -149,9 +153,16 @@ agent = create_agent(
         "holdings, including before answering questions about their portfolio. When the user "
         "asks what they should buy, sell, or hold, or otherwise asks for trading advice on their "
         "portfolio, use get_portfolio_trade_recommendation rather than guessing, then explain "
-        "each recommended action in plain language along with the reasoning available (current "
-        "price, holding size, signal strength) and, for each buy or sell, how many shares the "
-        "agent would trade (recommended_shares) and the rough dollar value. Always make clear this is a trained model's "
+        "each recommended action in plain language along with the data available (current "
+        "price, holding size, signal rank) and, for each buy or sell, how many shares the "
+        "agent would trade (recommended_shares), the rough dollar value, and the resulting "
+        "holding (holding_after_trade_shares, use this number rather than calculating it). "
+        "signal_rank is where the stock's predicted 5-day return ranks against the other "
+        "tracked stocks today: rank 1 means the highest predicted return, not a confident "
+        "or strong prediction, so describe it as e.g. 'ranked 1 of 5'. The trading agent "
+        "weighs this rank together with cash, holdings and recent prices, so its action can "
+        "go against the rank; it gives no reasons, so do not invent one, and if the action "
+        "seems to conflict with the rank, say so plainly. Always make clear this is a trained model's "
         "suggestion, not financial advice, and that it only covers the tickers it was trained on, "
         "which are: "
         f"{', '.join(f'{ticker} ({PORTFOLIO_TICKER_NAMES.get(ticker, ticker)})' for ticker in PORTFOLIO_TICKERS)}. "
@@ -215,6 +226,42 @@ class ChatResponse(BaseModel):
     widgets: list[Widget] = []
 
 
+def _parse_text_tool_call(text: str) -> tuple[str, dict] | None:
+    """Recognise a tool call the model wrote as plain text instead of calling the tool."""
+    match = re.search(r"\{.*\}", text, re.DOTALL)
+    if not match:
+        return None
+    try:
+        payload = json.loads(match.group(0).replace('\\"', '"'))
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict) or payload.get("name") not in TOOLS_BY_NAME:
+        return None
+    args = payload.get("parameters", payload.get("arguments", {}))
+    return payload["name"], args if isinstance(args, dict) else {}
+
+
+def _recover_text_tool_call(messages: list) -> list:
+    """Run a tool call written as text, then let the agent answer with the real result."""
+    parsed = _parse_text_tool_call(messages[-1].content)
+    if parsed is None:
+        return messages
+
+    name, args = parsed
+    call_id = f"call_{uuid.uuid4().hex}"
+    try:
+        output = TOOLS_BY_NAME[name].invoke(args)
+    except Exception as exc:  # e.g. missing or wrongly named arguments
+        output = {"error": str(exc)}
+
+    recovered = [
+        *messages[:-1],
+        AIMessage(content="", tool_calls=[{"name": name, "args": args, "id": call_id}]),
+        ToolMessage(content=json.dumps(output, default=str), tool_call_id=call_id),
+    ]
+    return agent.invoke({"messages": recovered})["messages"]
+
+
 @app.post("/chat")
 def chat(request: ChatRequest) -> ChatResponse:
     collected: list[dict] = []
@@ -223,6 +270,7 @@ def chat(request: ChatRequest) -> ChatResponse:
         result = agent.invoke(
             {"messages": [{"role": "user", "content": request.message}]}
         )
+        messages = _recover_text_tool_call(result["messages"])
     finally:
         _widgets.reset(token)
-    return ChatResponse(reply=result["messages"][-1].content, widgets=collected)
+    return ChatResponse(reply=messages[-1].content, widgets=collected)

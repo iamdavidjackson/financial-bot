@@ -204,17 +204,25 @@ def recommend_trades() -> dict:
         action, current_prices, env.cash, env.holdings, portfolio_value
     )
 
+    ticker_count = len(PORTFOLIO_TICKERS)
     recommendations = {}
     for index, ticker in enumerate(PORTFOLIO_TICKERS):
         price = float(current_prices[index])
         shares = planned_shares[index]
+        action_label = ACTION_LABELS[int(action[index])]
+        signal_percentile = float(env.signals[env.current_step][index])
+        holding = float(env.holdings[index])
+        holding_change = {"buy": shares, "sell": -shares}.get(action_label, 0)
         recommendations[ticker] = {
-            "action": ACTION_LABELS[int(action[index])],
+            "action": action_label,
             "current_price": round(price, 2),
-            "current_holding_shares": float(env.holdings[index]),
-            "signal_percentile": round(float(env.signals[env.current_step][index]), 4),
+            "current_holding_shares": holding,
+            "signal_percentile": round(signal_percentile, 4),
+            "signal_rank": int(round(ticker_count * (1 - signal_percentile))) + 1,
+            "signal_rank_out_of": ticker_count,
             "recommended_shares": shares,
             "estimated_trade_value": round(shares * price, 2),
+            "holding_after_trade_shares": holding + holding_change,
         }
 
     return {

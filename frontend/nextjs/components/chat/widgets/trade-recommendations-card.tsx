@@ -29,8 +29,8 @@ export function TradeRecommendationsCard({
                 <div className="min-w-0">
                   <div className="text-sm font-medium">{ticker}</div>
                   <div className="text-xs text-muted-foreground tabular-nums">
-                    ${rec.current_price.toFixed(2)} · {rec.current_holding_shares} sh · signal{" "}
-                    {(rec.signal_percentile * 100).toFixed(0)}%
+                    ${rec.current_price.toFixed(2)} · {rec.current_holding_shares} sh · rank{" "}
+                    {rec.signal_rank} of {rec.signal_rank_out_of}
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-0.5">
